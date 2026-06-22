@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ff7a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="臨時對話">
+  <title>臨時對話</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/assets/icon-192.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero-card" id="setupView">
+      <div class="brand-pill">Ephemeral Chat v3.2</div>
+      <h1>一次性連結<br>加入臨時對話</h1>
+      <p class="muted">
+        不手動輸入頻道。建立邀請連結後，對方點開就會自動加入專屬對話框。
+      </p>
+
+      <label class="field-label" for="displayName">我的顯示名稱</label>
+      <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：米、A、B">
+
+      <div class="settings-card">
+        <div class="panel-title">秒數設定</div>
+        <div class="settings-grid">
+          <label class="mini-field">
+            <span>畫面顯示</span>
+            <input id="displaySeconds" class="text-input" type="number" inputmode="numeric" min="1" max="60" step="1" value="3">
+            <em>秒後從畫面消失</em>
+          </label>
+
+          <label class="mini-field">
+            <span>訊息快取</span>
+            <input id="messageTtlSeconds" class="text-input" type="number" inputmode="numeric" min="5" max="600" step="1" value="20">
+            <em>秒內未讀就過期</em>
+          </label>
+
+          <label class="mini-field">
+            <span>邀請有效</span>
+            <input id="inviteTtlSeconds" class="text-input" type="number" inputmode="numeric" min="30" max="86400" step="10" value="1800">
+            <em>秒後邀請失效</em>
+          </label>
+        </div>
+        <p class="small-muted">建立邀請時會把這組秒數帶給對方。已建立的對話可重置後重新建立來改設定。</p>
+      </div>
+
+      <div class="button-row">
+        <button id="createInviteBtn" class="primary-btn" type="button">建立專屬對話</button>
+        <button id="healthBtn" class="ghost-btn" type="button">測試後端</button>
+      </div>
+
+      <div id="invitePanel" class="invite-panel hidden">
+        <div class="panel-title">邀請連結</div>
+        <textarea id="inviteLink" readonly></textarea>
+        <div class="button-row">
+          <button id="copyInviteBtn" class="primary-btn" type="button">複製邀請連結</button>
+          <button id="openChatBtn" class="ghost-btn" type="button">進入對話</button>
+        </div>
+        <p class="small-muted">邀請連結是一次性，對方點過後就會失效。過期請重新建立。</p>
+      </div>
+    </section>
+
+    <section class="hero-card hidden" id="acceptView">
+      <div class="brand-pill">Invite</div>
+      <h1>正在加入對話</h1>
+      <p class="muted">請輸入你的顯示名稱，系統會自動儲存這個專屬對話到本機瀏覽器。</p>
+
+      <label class="field-label" for="guestName">我的顯示名稱</label>
+      <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：B、朋友、米">
+
+      <button id="acceptInviteBtn" class="primary-btn wide" type="button">接受邀請並加入</button>
+    </section>
+
+    <section class="chat-card hidden" id="chatView">
+      <header class="chat-header">
+        <div>
+          <div class="brand-pill small">專屬臨時對話</div>
+          <h2 id="chatTitle">已建立對話</h2>
+          <p id="chatSub" class="small-muted">訊息讀取後即從快取刪除，畫面會依秒數設定移除。</p>
+        </div>
+        <div class="header-actions">
+          <button id="clearNowBtn" class="icon-btn danger-soft" type="button" title="立即清空畫面">立即刪</button>
+          <button id="resetBtn" class="icon-btn" type="button" title="重置">重置</button>
+        </div>
+      </header>
+
+      <div id="installBox" class="install-box hidden">
+        <strong>可以加入主畫面</strong>
+        <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟這個對話。</p>
+        <div class="button-row">
+          <button id="installBtn" class="primary-btn" type="button">安裝 / 加入主畫面</button>
+          <button id="dismissInstallBtn" class="ghost-btn" type="button">稍後</button>
+        </div>
+      </div>
+
+      <div id="chatBox" class="chat-box"></div>
+
+      <form id="messageForm" class="composer">
+        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入訊息...">
+        <button type="submit">送出</button>
+      </form>
+    </section>
+
+    <div id="statusBar" class="status-bar">準備好了</div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
