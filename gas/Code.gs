@@ -1,5 +1,5 @@
 /**
- * Ephemeral Chat PWA v3.4 - GAS backend
+ * Ephemeral Chat PWA v3.5 - GAS backend
  *
  * 用途：只使用 CacheService 做短暫訊息轉交，不寫 Google Sheets、不寫資料庫。
  * 注意：這不是絕對無痕或端對端加密系統。Apps Script 執行、瀏覽器、網路環境仍可能留下操作痕跡。
@@ -20,7 +20,7 @@ function doGet() {
   return json_({
     ok: true,
     name: 'Ephemeral Chat GAS API',
-    version: 'v3.4',
+    version: 'v3.5',
     message: 'Use POST with JSON body.'
   });
 }
@@ -31,7 +31,7 @@ function doPost(e) {
     var action = String(body.action || '').trim();
 
     if (action === 'health') {
-      return json_({ ok: true, version: 'v3.4', time: Date.now() });
+      return json_({ ok: true, version: 'v3.5', time: Date.now() });
     }
 
     if (action === 'createInvite') {

@@ -214,6 +214,8 @@ textarea {
   display: flex;
   gap: 8px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .icon-btn {
@@ -342,4 +344,80 @@ textarea {
   .chat-card { padding: 18px; border-radius: 24px; }
   .button-row { flex-direction: column; }
   .button-row button { width: 100%; }
+}
+
+
+.friends-panel {
+  margin: 14px 0 2px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.friend-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(11, 42, 91, 0.10);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 8px;
+}
+
+.friend-main {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  text-align: left;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.friend-main strong,
+.friend-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-main strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.friend-main span {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.friend-action {
+  border: 0;
+  border-radius: 12px;
+  background: #eef3ff;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+@media (max-width: 420px) {
+  .friend-item {
+    grid-template-columns: 1fr;
+  }
+
+  .friend-action {
+    width: 100%;
+  }
 }

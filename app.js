@@ -1,6 +1,7 @@
-const SESSION_KEY = 'ephemeral_chat_v34_session';
-const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v34_install_dismissed';
-const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v34_settings';
+const SESSION_KEY = 'ephemeral_chat_v35_session';
+const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v35_install_dismissed';
+const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v35_settings';
+const FRIENDS_KEY = 'ephemeral_chat_v35_friends';
 
 const DEFAULT_SETTINGS = {
   displaySeconds: 3,
@@ -33,6 +34,8 @@ const messageInput = $('messageInput');
 const installBox = $('installBox');
 const installBtn = $('installBtn');
 const installText = $('installText');
+const friendsPanel = $('friendsPanel');
+const friendsList = $('friendsList');
 
 window.addEventListener('load', init);
 
@@ -46,6 +49,7 @@ async function init() {
   registerServiceWorker();
   bindEvents();
   loadSettingsIntoForm();
+  renderFriendsList();
 
   const invite = new URL(location.href).searchParams.get('invite');
   session = loadSession();
@@ -70,6 +74,7 @@ function bindEvents() {
   $('acceptInviteBtn').addEventListener('click', acceptInvite);
   $('healthBtn').addEventListener('click', healthCheck);
   $('clearNowBtn').addEventListener('click', clearVisibleMessages);
+  $('saveFriendBtn').addEventListener('click', saveCurrentAsFriend);
   $('resetBtn').addEventListener('click', resetSession);
   $('dismissInstallBtn').addEventListener('click', () => {
     localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
@@ -97,6 +102,7 @@ function showSetupView() {
   setupView.classList.remove('hidden');
   acceptView.classList.add('hidden');
   chatView.classList.add('hidden');
+  renderFriendsList();
   setStatus('建立對話後，系統會自動產生一次性邀請連結。');
 }
 
@@ -184,7 +190,8 @@ function enterChat() {
 
   const settings = getActiveSettings();
   $('chatTitle').textContent = session.role === 'creator' ? '對話已建立' : '已加入對話';
-  $('chatSub').textContent = `你的顯示名稱：${session.label || '我'}｜畫面 ${settings.displaySeconds} 秒消失｜未讀 ${settings.messageTtlSeconds} 秒過期`;
+  const friendName = findFriendNameBySession(session);
+  $('chatSub').textContent = `${friendName ? '常用：' + friendName + '｜' : ''}你的顯示名稱：${session.label || '我'}｜畫面 ${settings.displaySeconds} 秒消失｜未讀 ${settings.messageTtlSeconds} 秒過期`;
 
   setStatus('對話啟用中。');
   startPolling();
@@ -319,6 +326,191 @@ async function copyInvite() {
     document.execCommand('copy');
     setStatus('邀請連結已選取，可手動複製。');
   }
+}
+
+
+function loadFriends() {
+  try {
+    const raw = localStorage.getItem(FRIENDS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((item) => item && item.session && item.session.myChannel && item.session.peerChannel)
+      .map((item) => ({
+        id: String(item.id || makeLocalId()),
+        name: String(item.name || '未命名常用').slice(0, 40),
+        session: normalizeSessionSettings(item.session),
+        updatedAt: Number(item.updatedAt || Date.now())
+      }))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 20);
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveFriends(friends) {
+  localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends.slice(0, 20)));
+}
+
+function renderFriendsList() {
+  if (!friendsPanel || !friendsList) return;
+
+  const friends = loadFriends();
+  friendsList.replaceChildren();
+
+  if (!friends.length) {
+    friendsPanel.classList.add('hidden');
+    return;
+  }
+
+  friendsPanel.classList.remove('hidden');
+
+  friends.forEach((friend) => {
+    const item = document.createElement('div');
+    item.className = 'friend-item';
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'friend-main';
+    main.innerHTML = `<strong></strong><span></span>`;
+    main.querySelector('strong').textContent = friend.name;
+    main.querySelector('span').textContent = `上次使用：${formatDate(friend.updatedAt)}`;
+    main.addEventListener('click', () => openFriend(friend.id));
+
+    const rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'friend-action';
+    rename.textContent = '改名';
+    rename.addEventListener('click', () => renameFriend(friend.id));
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'friend-action danger-soft';
+    remove.textContent = '刪除';
+    remove.addEventListener('click', () => deleteFriend(friend.id));
+
+    item.appendChild(main);
+    item.appendChild(rename);
+    item.appendChild(remove);
+    friendsList.appendChild(item);
+  });
+}
+
+function saveCurrentAsFriend() {
+  if (!session || !session.myChannel || !session.peerChannel) {
+    setStatus('尚未建立可儲存的對話。');
+    return;
+  }
+
+  const existingName = findFriendNameBySession(session) || session.peerLabel || '常用對話';
+  const name = prompt('要把這個對話存成什麼名稱？例如：Lisa、小藍', existingName);
+  if (name === null) return;
+
+  const safeName = String(name || '').trim().slice(0, 40);
+  if (!safeName) {
+    setStatus('名稱不可為空。');
+    return;
+  }
+
+  const friends = loadFriends();
+  const key = friendSessionKey(session);
+  const existingIndex = friends.findIndex((item) => friendSessionKey(item.session) === key);
+  const record = {
+    id: existingIndex >= 0 ? friends[existingIndex].id : makeLocalId(),
+    name: safeName,
+    session: normalizeSessionSettings(session),
+    updatedAt: Date.now()
+  };
+
+  if (existingIndex >= 0) {
+    friends.splice(existingIndex, 1);
+  }
+
+  friends.unshift(record);
+  saveFriends(friends);
+  renderFriendsList();
+  enterChat();
+  setStatus(`已加入常用：${safeName}`);
+}
+
+function openFriend(id) {
+  const friends = loadFriends();
+  const index = friends.findIndex((item) => item.id === id);
+  if (index < 0) {
+    setStatus('找不到這個常用對話。');
+    renderFriendsList();
+    return;
+  }
+
+  const item = friends[index];
+  item.updatedAt = Date.now();
+  friends.splice(index, 1);
+  friends.unshift(item);
+  saveFriends(friends);
+
+  session = normalizeSessionSettings(item.session);
+  saveSession(session);
+  history.replaceState({}, '', location.origin + location.pathname);
+  enterChat();
+  addMessage('system', '系統', `已開啟常用對話：${item.name}`);
+}
+
+function renameFriend(id) {
+  const friends = loadFriends();
+  const item = friends.find((friend) => friend.id === id);
+  if (!item) return;
+
+  const name = prompt('新的常用名稱', item.name);
+  if (name === null) return;
+
+  const safeName = String(name || '').trim().slice(0, 40);
+  if (!safeName) return;
+
+  item.name = safeName;
+  item.updatedAt = Date.now();
+  saveFriends(friends);
+  renderFriendsList();
+  setStatus(`已改名：${safeName}`);
+}
+
+function deleteFriend(id) {
+  const friends = loadFriends();
+  const item = friends.find((friend) => friend.id === id);
+  if (!item) return;
+  if (!confirm(`確定從常用刪除「${item.name}」？這只會刪除本機常用，不會影響對方。`)) return;
+
+  saveFriends(friends.filter((friend) => friend.id !== id));
+  renderFriendsList();
+  setStatus('已從常用刪除。');
+}
+
+function findFriendNameBySession(value) {
+  if (!value) return '';
+  const key = friendSessionKey(value);
+  const found = loadFriends().find((item) => friendSessionKey(item.session) === key);
+  return found ? found.name : '';
+}
+
+function friendSessionKey(value) {
+  if (!value) return '';
+  return `${value.myChannel || ''}->${value.peerChannel || ''}`;
+}
+
+function makeLocalId() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  return `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function formatDate(timestamp) {
+  const date = new Date(Number(timestamp || Date.now()));
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${month}/${day} ${hour}:${minute}`;
 }
 
 function resetSession() {

@@ -1,7 +1,7 @@
 {
   "name": "臨時對話",
   "short_name": "臨時對話",
-  "description": "一次性邀請連結加入的短暫對話 PWA。",
+  "description": "一次性邀請連結加入的短暫對話 PWA，支援本機常用/好友。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
