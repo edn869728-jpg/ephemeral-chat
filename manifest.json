@@ -1,25 +1,4 @@
-{
-  "name": "臨時對話",
-  "short_name": "臨時對話",
-  "description": "一次性邀請連結加入的短暫對話 PWA。",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "background_color": "#0d0d10",
-  "theme_color": "#ff7a1a",
-  "orientation": "portrait",
-  "icons": [
-    {
-      "src": "/assets/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/assets/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
-}
+.DS_Store
+node_modules/
+.wrangler/
+.dev.vars
