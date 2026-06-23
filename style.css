@@ -1,113 +1,345 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b2a5b">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="臨時對話">
-  <title>臨時對話</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/assets/icon-192.png">
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <main class="app-shell">
-    <section class="hero-card" id="setupView">
-      <div class="brand-pill">Ephemeral Chat v3.4</div>
-      <h1>一次性連結<br>加入臨時對話</h1>
-      <p class="muted">
-        不手動輸入頻道。建立邀請連結後，對方點開就會自動加入專屬對話框。
-      </p>
+:root {
+  --bg: #061633;
+  --card: rgba(255, 255, 255, 0.96);
+  --card2: rgba(255, 255, 255, 0.08);
+  --text: #0b1220;
+  --muted: #64748b;
+  --line: rgba(11, 42, 91, 0.14);
+  --navy: #0b2a5b;
+  --navy-dark: #061633;
+  --orange: #d95f00;
+  --orange-dark: #b84a00;
+  --orange-soft: #fff3e8;
+  --green: #16a34a;
+  --danger: #dc2626;
+  --shadow: 0 22px 68px rgba(0, 0, 0, 0.32);
+}
+* { box-sizing: border-box; }
 
-      <label class="field-label" for="displayName">我的顯示名稱</label>
-      <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+  background:
+    radial-gradient(circle at 14% 8%, rgba(217, 95, 0, 0.46), transparent 30%),
+    radial-gradient(circle at 86% 16%, rgba(11, 42, 91, 0.72), transparent 30%),
+    linear-gradient(160deg, #061633 0%, #0b2a5b 58%, #1a2038 100%);
+  color: var(--text);
+}
 
-      <div class="settings-card">
-        <div class="panel-title">秒數設定</div>
-        <div class="settings-grid">
-          <label class="mini-field">
-            <span>畫面顯示</span>
-            <input id="displaySeconds" class="text-input" type="number" inputmode="numeric" min="1" max="60" step="1" value="3">
-            <em>秒後從畫面消失</em>
-          </label>
+button, input, textarea {
+  font: inherit;
+}
 
-          <label class="mini-field">
-            <span>訊息快取</span>
-            <input id="messageTtlSeconds" class="text-input" type="number" inputmode="numeric" min="5" max="600" step="1" value="20">
-            <em>秒內未讀就過期</em>
-          </label>
+button {
+  -webkit-tap-highlight-color: transparent;
+}
 
-          <label class="mini-field">
-            <span>邀請有效</span>
-            <input id="inviteTtlSeconds" class="text-input" type="number" inputmode="numeric" min="30" max="86400" step="10" value="1800">
-            <em>秒後邀請失效</em>
-          </label>
-        </div>
-        <p class="small-muted">建立邀請時會把這組秒數帶給對方。已建立的對話可重置後重新建立來改設定。</p>
-      </div>
+.app-shell {
+  width: min(100%, 560px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
 
-      <div class="button-row">
-        <button id="createInviteBtn" class="primary-btn" type="button">建立專屬對話</button>
-        <button id="healthBtn" class="ghost-btn" type="button">測試後端</button>
-      </div>
+.hero-card,
+.chat-card {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.72);
+  border-radius: 28px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+}
 
-      <div id="invitePanel" class="invite-panel hidden">
-        <div class="panel-title">邀請連結</div>
-        <textarea id="inviteLink" readonly></textarea>
-        <div class="button-row">
-          <button id="copyInviteBtn" class="primary-btn" type="button">複製邀請連結</button>
-          <button id="openChatBtn" class="ghost-btn" type="button">進入對話</button>
-        </div>
-        <p class="small-muted">邀請連結是一次性，對方點過後就會失效。過期請重新建立。</p>
-      </div>
-    </section>
+.chat-card {
+  min-height: calc(100vh - 58px);
+  display: flex;
+  flex-direction: column;
+}
 
-    <section class="hero-card hidden" id="acceptView">
-      <div class="brand-pill">Invite</div>
-      <h1>正在加入對話</h1>
-      <p class="muted">請輸入你的顯示名稱，系統會自動儲存這個專屬對話到本機瀏覽器。</p>
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(11, 42, 91, 0.10);
+  color: var(--navy);
+  border: 1px solid rgba(11, 42, 91, 0.12);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
 
-      <label class="field-label" for="guestName">我的顯示名稱</label>
-      <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
+.brand-pill.small {
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
 
-      <button id="acceptInviteBtn" class="primary-btn wide" type="button">接受邀請並加入</button>
-    </section>
+h1 {
+  margin: 0;
+  font-size: clamp(34px, 9vw, 54px);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  color: var(--navy);
+}
 
-    <section class="chat-card hidden" id="chatView">
-      <header class="chat-header">
-        <div>
-          <div class="brand-pill small">專屬臨時對話</div>
-          <h2 id="chatTitle">已建立對話</h2>
-          <p id="chatSub" class="small-muted">訊息讀取後即從快取刪除，畫面會依秒數設定移除。</p>
-        </div>
-        <div class="header-actions">
-          <button id="clearNowBtn" class="icon-btn danger-soft" type="button" title="立即清空畫面">立即刪</button>
-          <button id="resetBtn" class="icon-btn" type="button" title="重置">重置</button>
-        </div>
-      </header>
+h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.1;
+}
 
-      <div id="installBox" class="install-box hidden">
-        <strong>可以加入主畫面</strong>
-        <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟這個對話。</p>
-        <div class="button-row">
-          <button id="installBtn" class="primary-btn" type="button">安裝 / 加入主畫面</button>
-          <button id="dismissInstallBtn" class="ghost-btn" type="button">稍後</button>
-        </div>
-      </div>
+.muted,
+.small-muted {
+  color: var(--muted);
+  line-height: 1.65;
+}
 
-      <div id="chatBox" class="chat-box"></div>
+.muted {
+  font-size: 15px;
+  margin: 14px 0 18px;
+}
 
-      <form id="messageForm" class="composer">
-        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入訊息...">
-        <button type="submit">送出</button>
-      </form>
-    </section>
+.small-muted {
+  font-size: 12px;
+  margin: 6px 0 0;
+}
 
-    <div id="statusBar" class="status-bar">準備好了</div>
-  </main>
+.field-label {
+  display: block;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 900;
+  margin: 12px 0 6px;
+}
 
-  <script src="/app.js"></script>
-</body>
-</html>
+.text-input,
+textarea,
+.composer input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 16px;
+  padding: 13px 14px;
+  outline: none;
+  color: var(--text);
+}
+
+.text-input:focus,
+textarea:focus,
+.composer input:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 4px rgba(217, 95, 0, 0.16);
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.primary-btn,
+.ghost-btn,
+.icon-btn,
+.composer button {
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 15px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primary-btn,
+.composer button {
+  background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dark) 100%);
+  color: white;
+}
+
+.primary-btn:active,
+.ghost-btn:active,
+.icon-btn:active,
+.composer button:active {
+  transform: translateY(1px);
+}
+
+.ghost-btn,
+.icon-btn {
+  background: #eef3ff;
+  color: var(--navy);
+}
+
+.wide { width: 100%; }
+
+.invite-panel,
+.install-box {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.panel-title {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+textarea {
+  height: 92px;
+  resize: none;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.icon-btn {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.danger-soft {
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+.install-box {
+  background: var(--orange-soft);
+  border-color: rgba(217, 95, 0, 0.28);
+  margin-bottom: 12px;
+}
+
+.install-box p {
+  margin: 4px 0 0;
+  color: #8a3b00;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.chat-box {
+  flex: 1;
+  min-height: 320px;
+  border: 1px solid rgba(11, 42, 91, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3ff 100%);
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.msg {
+  max-width: 88%;
+  width: fit-content;
+  position: relative;
+  padding: 10px 62px 10px 12px;
+  border-radius: 16px;
+  margin: 8px 0;
+  background: #ffffff;
+  border: 1px solid rgba(11, 42, 91, 0.08);
+  box-shadow: 0 6px 18px rgba(11,42,91,0.08);
+  line-height: 1.5;
+  word-break: break-word;
+  animation: messageVanish var(--vanish-ms, 3s) forwards;
+}
+
+.msg.mine {
+  margin-left: auto;
+  background: #eaf1ff;
+  border-color: rgba(11, 42, 91, 0.18);
+}
+
+.msg.system {
+  max-width: 100%;
+  margin-inline: auto;
+  text-align: center;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.msg-sender {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 900;
+  margin-bottom: 2px;
+}
+
+.msg-text {
+  display: inline;
+}
+
+.msg-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 7px;
+  background: rgba(220,38,38,0.10);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.msg-delete:active {
+  transform: translateY(1px);
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: 1fr 78px;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.status-bar {
+  min-height: 32px;
+  color: rgba(255,255,255,0.92);
+  background: rgba(6, 22, 51, 0.38);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+}
+
+.hidden { display: none !important; }
+
+@keyframes messageVanish {
+  0% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+@media (max-width: 420px) {
+  .hero-card,
+  .chat-card { padding: 18px; border-radius: 24px; }
+  .button-row { flex-direction: column; }
+  .button-row button { width: 100%; }
+}
