@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ephemeral-chat-v35-static-20260623-friends';
+const CACHE_NAME = 'ephemeral-chat-v351-static-20260623-linkfix';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

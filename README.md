@@ -1,4 +1,22 @@
-# Ephemeral Chat PWA v3.4 configured
+# v3.5.1 link-fix changed files
+
+這包只包含需要覆蓋的檔案：`index.html`、`app.js`、`style.css`、`service-worker.js`、`README.md`。
+
+修正：
+
+- 修正 v3.5 changed-only 版本少了 `friendsPanel` / `saveFriendBtn` 導致 JS 啟動中斷。
+- 邀請連結改用乾淨首頁網址產生，例如 `https://你的.pages.dev/?invite=xxxxx`。
+- 更新 service worker cache name，避免手機/瀏覽器吃到舊首頁。
+
+更新後：
+
+1. 把這幾個檔案覆蓋到 GitHub 根目錄。
+2. Cloudflare Pages 重新部署。
+3. 手機端重新整理一次；若還吃舊畫面，清除網站資料或按「重置」。
+
+---
+
+# Ephemeral Chat PWA v3.5 configured
 
 本版已調整：
 
@@ -7,7 +25,7 @@
 - 已移除 `wrangler.toml`，避免 Cloudflare 誤判成 Worker 專案。
 - 已內建使用者提供的 GAS `/exec` 後端網址作為 Cloudflare Function fallback。
 
-# Ephemeral Chat PWA CF + GAS v3.4
+# Ephemeral Chat PWA CF + GAS v3.5
 
 這版是：
 
@@ -29,6 +47,7 @@ Cloudflare Pages 前端 + Pages Functions API 代理 + GAS CacheService 後端
 不寫資料庫
 自訂畫面顯示秒數 / 訊息快取秒數 / 邀請有效秒數
 每則訊息可按「立即刪」，也可一鍵清空畫面
+常用 / 好友：可把目前專屬對話存到本機，之後從首頁一鍵開啟
 ```
 
 重要說明：這是「短暫快取傳遞」，不是絕對無痕、不是端對端加密，也不能防止截圖、瀏覽器紀錄、網路紀錄或平台執行紀錄。
@@ -262,7 +281,7 @@ const POLL_INTERVAL_MS = 1400;      // 幾毫秒輪詢一次
 
 # 八、版本備註
 
-v3.4 新增：
+v3.5 新增：
 
 ```text
 首頁可自訂畫面顯示秒數、訊息快取秒數、邀請有效秒數
@@ -280,4 +299,29 @@ v3 和前一版最大差異：
 Cloudflare Pages 當公開入口
 Cloudflare Pages Functions 當 API 代理
 GAS 只做短暫快取後端
+```
+
+
+---
+
+# 九、常用 / 好友
+
+這版新增「常用 / 好友」功能：
+
+```text
+進入聊天後按「加常用」
+→ 輸入名稱，例如 Lisa、小藍
+→ 回到首頁時會出現在「常用 / 好友」清單
+→ 點一下即可開啟該專屬對話
+```
+
+注意：
+
+```text
+常用只存在本機 localStorage
+不寫 Google Sheets
+不寫資料庫
+不會同步到其他手機
+不會保存聊天紀錄
+刪除常用只會刪除本機捷徑，不會影響對方
 ```

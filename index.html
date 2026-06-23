@@ -15,14 +15,20 @@
 <body>
   <main class="app-shell">
     <section class="hero-card" id="setupView">
-      <div class="brand-pill">Ephemeral Chat v3.4</div>
+      <div class="brand-pill">Ephemeral Chat v3.5.1</div>
       <h1>一次性連結<br>加入臨時對話</h1>
       <p class="muted">
-        不手動輸入頻道。建立邀請連結後，對方點開就會自動加入專屬對話框。
+        不手動輸入頻道。建立邀請連結後，對方點開就會自動加入專屬對話框；常用對話會存在本機。
       </p>
 
       <label class="field-label" for="displayName">我的顯示名稱</label>
       <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
+
+      <div id="friendsPanel" class="friends-panel hidden">
+        <div class="panel-title">常用 / 好友</div>
+        <div id="friendsList" class="friends-list"></div>
+        <p class="small-muted">常用只存在這台裝置的 localStorage，不會同步到其他手機，也不會產生聊天紀錄。</p>
+      </div>
 
       <div class="settings-card">
         <div class="panel-title">秒數設定</div>
@@ -84,6 +90,7 @@
         </div>
         <div class="header-actions">
           <button id="clearNowBtn" class="icon-btn danger-soft" type="button" title="立即清空畫面">立即刪</button>
+          <button id="saveFriendBtn" class="icon-btn" type="button" title="加入常用">加常用</button>
           <button id="resetBtn" class="icon-btn" type="button" title="重置">重置</button>
         </div>
       </header>

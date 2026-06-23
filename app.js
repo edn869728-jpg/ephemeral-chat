@@ -37,6 +37,17 @@ const installText = $('installText');
 const friendsPanel = $('friendsPanel');
 const friendsList = $('friendsList');
 
+function getAppBaseUrl() {
+  const url = new URL('./', location.href);
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function goCleanBaseUrl() {
+  history.replaceState({}, '', getAppBaseUrl());
+}
+
 window.addEventListener('load', init);
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -74,7 +85,8 @@ function bindEvents() {
   $('acceptInviteBtn').addEventListener('click', acceptInvite);
   $('healthBtn').addEventListener('click', healthCheck);
   $('clearNowBtn').addEventListener('click', clearVisibleMessages);
-  $('saveFriendBtn').addEventListener('click', saveCurrentAsFriend);
+  const saveFriendBtn = $('saveFriendBtn');
+  if (saveFriendBtn) saveFriendBtn.addEventListener('click', saveCurrentAsFriend);
   $('resetBtn').addEventListener('click', resetSession);
   $('dismissInstallBtn').addEventListener('click', () => {
     localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
@@ -124,7 +136,7 @@ async function createInvite() {
     session = normalizeSessionSettings(data.session);
     saveSession(session);
 
-    const url = new URL(location.origin + location.pathname);
+    const url = new URL(getAppBaseUrl());
     url.searchParams.set('invite', data.inviteToken);
     inviteLink.value = url.toString();
     invitePanel.classList.remove('hidden');
@@ -153,7 +165,7 @@ async function acceptInvite() {
     session = normalizeSessionSettings(data.session);
     saveSession(session);
 
-    history.replaceState({}, '', location.origin + location.pathname);
+    goCleanBaseUrl();
     enterChat();
     addMessage('system', '系統', '你已加入這個專屬臨時對話。');
   } catch (err) {
@@ -453,7 +465,7 @@ function openFriend(id) {
 
   session = normalizeSessionSettings(item.session);
   saveSession(session);
-  history.replaceState({}, '', location.origin + location.pathname);
+  goCleanBaseUrl();
   enterChat();
   addMessage('system', '系統', `已開啟常用對話：${item.name}`);
 }
@@ -518,7 +530,7 @@ function resetSession() {
   localStorage.removeItem(SESSION_KEY);
   session = null;
   if (pollTimer) clearInterval(pollTimer);
-  history.replaceState({}, '', location.origin + location.pathname);
+  goCleanBaseUrl();
   location.reload();
 }
 
