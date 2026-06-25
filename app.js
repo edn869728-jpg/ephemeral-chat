@@ -1,18 +1,23 @@
-const SESSION_KEY = 'ephemeral_chat_v37_sealed_session';
-const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v37_install_dismissed';
-const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v37_settings';
-const FRIENDS_KEY = 'ephemeral_chat_v37_friends';
-const NOTIFY_PREF_KEY = 'ephemeral_chat_v37_notify_enabled';
-const LAST_UNREAD_KEY = 'ephemeral_chat_v37_last_unread';
+const SESSION_KEY = 'ephemeral_chat_v38_peek_session';
+const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v38_install_dismissed';
+const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v38_settings';
+const FRIENDS_KEY = 'ephemeral_chat_v38_friends';
+const NOTIFY_PREF_KEY = 'ephemeral_chat_v38_notify_enabled';
+const LAST_UNREAD_KEY = 'ephemeral_chat_v38_last_unread';
 
 const DEFAULT_SETTINGS = {
-  displaySeconds: 3,
+  // 第一次按住查看後，從這裡開始倒數刪除
+  displaySeconds: 5,
+  // 進聊天室後，如果還沒按住查看，密封泡泡最多留多久
+  sealedBubbleSeconds: 60,
+  // 對方還沒開 App 前，後端密封包最多保留多久
   messageTtlSeconds: 20,
   inviteTtlSeconds: 30 * 60
 };
 
 const LIMITS = {
   displaySeconds: { min: 1, max: 60 },
+  sealedBubbleSeconds: { min: 3, max: 300 },
   messageTtlSeconds: { min: 5, max: 3600 },
   inviteTtlSeconds: { min: 30, max: 86400 }
 };
@@ -58,6 +63,7 @@ window.addEventListener('focus', () => {
   if (session) checkUnreadAndMaybeRead(true);
 });
 document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('privacy-hidden', document.hidden);
   if (!document.hidden && session) checkUnreadAndMaybeRead(true);
 });
 
@@ -109,7 +115,7 @@ function bindEvents() {
   });
   installBtn.addEventListener('click', installPwa);
 
-  ['displaySeconds', 'messageTtlSeconds', 'inviteTtlSeconds'].forEach((id) => {
+  ['displaySeconds', 'sealedBubbleSeconds', 'messageTtlSeconds', 'inviteTtlSeconds'].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener('change', () => {
@@ -236,7 +242,7 @@ function enterChat() {
   const settings = getActiveSettings();
   $('chatTitle').textContent = session.role === 'creator' ? '密封對話已建立' : '已加入密封對話';
   const friendName = findFriendNameBySession(session);
-  $('chatSub').textContent = `${friendName ? '常用：' + friendName + '｜' : ''}你的顯示名稱：${session.label || '我'}｜畫面 ${settings.displaySeconds} 秒消失｜未讀 ${settings.messageTtlSeconds} 秒過期`;
+  $('chatSub').textContent = `${friendName ? '常用：' + friendName + '｜' : ''}按住查看後 ${settings.displaySeconds} 秒刪除｜未開封泡泡 ${settings.sealedBubbleSeconds} 秒消失｜未讀 ${settings.messageTtlSeconds} 秒過期`;
   updateNotifyButton();
   updateUnreadBadge(loadLastUnread());
 
@@ -354,13 +360,17 @@ async function sendMessage() {
 }
 
 function addMessage(type, sender, text) {
-  const div = document.createElement('div');
-  div.className = `msg ${type === 'mine' ? 'mine' : ''} ${type === 'system' ? 'system' : ''}`.trim();
+  const settings = getActiveSettings();
+  const isPeekMessage = type === 'other';
 
+  const div = document.createElement('div');
+  div.className = `msg ${type === 'mine' ? 'mine' : ''} ${type === 'system' ? 'system' : ''} ${isPeekMessage ? 'peek' : ''}`.trim();
+
+  let senderEl = null;
   if (type !== 'system') {
-    const senderEl = document.createElement('span');
+    senderEl = document.createElement('span');
     senderEl.className = 'msg-sender';
-    senderEl.textContent = sender;
+    senderEl.textContent = isPeekMessage ? '密封訊息' : sender;
     div.appendChild(senderEl);
   }
 
@@ -368,6 +378,14 @@ function addMessage(type, sender, text) {
   textEl.className = 'msg-text';
   textEl.textContent = text;
   div.appendChild(textEl);
+
+  let hintEl = null;
+  if (isPeekMessage) {
+    hintEl = document.createElement('span');
+    hintEl.className = 'peek-hint';
+    hintEl.textContent = `按住查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
+    div.appendChild(hintEl);
+  }
 
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
@@ -377,20 +395,60 @@ function addMessage(type, sender, text) {
   deleteBtn.setAttribute('aria-label', '立即從畫面刪除這則訊息');
   div.appendChild(deleteBtn);
 
-  const settings = getActiveSettings();
-  const lifetimeMs = settings.displaySeconds * 1000;
-  div.style.setProperty('--vanish-ms', `${lifetimeMs}ms`);
+  let timer = null;
+  let opened = false;
+  const openedLifetimeMs = settings.displaySeconds * 1000;
+  const unopenedLifetimeMs = settings.sealedBubbleSeconds * 1000;
 
-  const timer = setTimeout(() => div.remove(), lifetimeMs);
-  deleteBtn.addEventListener('click', () => {
-    clearTimeout(timer);
+  function removeMessage() {
+    if (timer) clearTimeout(timer);
     div.remove();
+  }
+
+  if (isPeekMessage) {
+    // 還沒按住查看前，只是一顆密封泡泡；超時就消失。
+    timer = setTimeout(removeMessage, unopenedLifetimeMs);
+
+    const reveal = (event) => {
+      if (event) event.preventDefault();
+      if (!div.isConnected) return;
+      div.classList.add('revealed');
+      if (senderEl) senderEl.textContent = sender || '對方';
+      if (hintEl) hintEl.textContent = `查看中｜${settings.displaySeconds} 秒後刪除`;
+
+      // 第一次按住查看，才開始「看訊息後幾秒消失」倒數。
+      if (!opened) {
+        opened = true;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(removeMessage, openedLifetimeMs);
+      }
+    };
+
+    const hide = () => {
+      if (!div.isConnected) return;
+      div.classList.remove('revealed');
+      if (senderEl) senderEl.textContent = '密封訊息';
+      if (hintEl) hintEl.textContent = opened ? '已開封倒數中｜按住可再次查看' : `按住查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
+    };
+
+    div.addEventListener('pointerdown', reveal);
+    div.addEventListener('pointerup', hide);
+    div.addEventListener('pointercancel', hide);
+    div.addEventListener('pointerleave', hide);
+    window.addEventListener('blur', hide);
+  } else {
+    div.style.setProperty('--vanish-ms', `${openedLifetimeMs}ms`);
+    timer = setTimeout(removeMessage, openedLifetimeMs);
+  }
+
+  deleteBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    removeMessage();
   });
 
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
-
 function clearVisibleMessages() {
   chatBox.replaceChildren();
   updateUnreadBadge(0);
@@ -813,6 +871,7 @@ function saveLocalSettings(settings) {
 function loadSettingsIntoForm(settings) {
   const value = sanitizeSettings(settings || loadLocalSettings());
   $('displaySeconds').value = value.displaySeconds;
+  $('sealedBubbleSeconds').value = value.sealedBubbleSeconds;
   $('messageTtlSeconds').value = value.messageTtlSeconds;
   $('inviteTtlSeconds').value = value.inviteTtlSeconds;
 }
@@ -820,6 +879,7 @@ function loadSettingsIntoForm(settings) {
 function getSettingsFromForm() {
   return sanitizeSettings({
     displaySeconds: $('displaySeconds').value,
+    sealedBubbleSeconds: $('sealedBubbleSeconds').value,
     messageTtlSeconds: $('messageTtlSeconds').value,
     inviteTtlSeconds: $('inviteTtlSeconds').value
   });
@@ -843,6 +903,7 @@ function sanitizeSettings(value) {
   const source = value || {};
   return {
     displaySeconds: clampNumber(source.displaySeconds, DEFAULT_SETTINGS.displaySeconds, LIMITS.displaySeconds.min, LIMITS.displaySeconds.max),
+    sealedBubbleSeconds: clampNumber(source.sealedBubbleSeconds, DEFAULT_SETTINGS.sealedBubbleSeconds, LIMITS.sealedBubbleSeconds.min, LIMITS.sealedBubbleSeconds.max),
     messageTtlSeconds: clampNumber(source.messageTtlSeconds, DEFAULT_SETTINGS.messageTtlSeconds, LIMITS.messageTtlSeconds.min, LIMITS.messageTtlSeconds.max),
     inviteTtlSeconds: clampNumber(source.inviteTtlSeconds, DEFAULT_SETTINGS.inviteTtlSeconds, LIMITS.inviteTtlSeconds.min, LIMITS.inviteTtlSeconds.max)
   };

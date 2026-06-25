@@ -441,3 +441,111 @@ textarea {
   color: var(--orange-dark);
   border-color: rgba(217, 95, 0, 0.28);
 }
+
+/* ===== v3.8 compact one-row seconds settings ===== */
+.compact-settings {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 88px 72px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(11, 42, 91, 0.10);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.setting-row span {
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.setting-row em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.seconds-input {
+  width: 72px !important;
+  min-width: 72px;
+  padding: 8px 8px !important;
+  border-radius: 12px !important;
+  text-align: center;
+  font-weight: 900;
+}
+
+/* ===== v3.8 peek privacy mode ===== */
+.msg.peek {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.msg.peek .msg-text {
+  display: inline-block;
+  filter: blur(6px);
+  opacity: 0.52;
+  transition: filter .12s ease, opacity .12s ease;
+}
+
+.msg.peek.revealed .msg-text {
+  filter: blur(0);
+  opacity: 1;
+}
+
+.peek-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--orange-dark);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.msg.peek.revealed .peek-hint {
+  color: var(--danger);
+}
+
+body.privacy-hidden .chat-box,
+body.privacy-hidden .composer,
+body.privacy-hidden .install-box {
+  filter: blur(10px);
+  opacity: .42;
+}
+
+body.privacy-hidden .status-bar::after {
+  content: '｜已暫時遮蔽';
+}
+
+@media (max-width: 420px) {
+  .setting-row {
+    grid-template-columns: 82px 66px 1fr;
+    gap: 7px;
+    padding: 8px;
+  }
+  .seconds-input {
+    width: 66px !important;
+    min-width: 66px;
+  }
+  .setting-row em {
+    font-size: 10.5px;
+  }
+}
