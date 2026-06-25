@@ -421,3 +421,23 @@ textarea {
     width: 100%;
   }
 }
+
+.unread-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid rgba(11, 42, 91, 0.12);
+}
+
+.unread-pill.active {
+  background: var(--orange-soft);
+  color: var(--orange-dark);
+  border-color: rgba(217, 95, 0, 0.28);
+}

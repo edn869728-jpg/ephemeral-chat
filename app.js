@@ -1,7 +1,9 @@
-const SESSION_KEY = 'ephemeral_chat_v35_session';
-const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v35_install_dismissed';
-const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v35_settings';
-const FRIENDS_KEY = 'ephemeral_chat_v35_friends';
+const SESSION_KEY = 'ephemeral_chat_v37_sealed_session';
+const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v37_install_dismissed';
+const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v37_settings';
+const FRIENDS_KEY = 'ephemeral_chat_v37_friends';
+const NOTIFY_PREF_KEY = 'ephemeral_chat_v37_notify_enabled';
+const LAST_UNREAD_KEY = 'ephemeral_chat_v37_last_unread';
 
 const DEFAULT_SETTINGS = {
   displaySeconds: 3,
@@ -11,15 +13,18 @@ const DEFAULT_SETTINGS = {
 
 const LIMITS = {
   displaySeconds: { min: 1, max: 60 },
-  messageTtlSeconds: { min: 5, max: 600 },
+  messageTtlSeconds: { min: 5, max: 3600 },
   inviteTtlSeconds: { min: 30, max: 86400 }
 };
 
-const POLL_INTERVAL_MS = 1400;
+const POLL_INTERVAL_MS = 5000;
+const ACTIVE_READ_DELAY_MS = 350;
 
 let session = null;
 let pollTimer = null;
 let deferredInstallPrompt = null;
+let lastUnreadCount = 0;
+let readInFlight = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,6 +54,12 @@ function goCleanBaseUrl() {
 }
 
 window.addEventListener('load', init);
+window.addEventListener('focus', () => {
+  if (session) checkUnreadAndMaybeRead(true);
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && session) checkUnreadAndMaybeRead(true);
+});
 
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
@@ -62,7 +73,7 @@ async function init() {
   loadSettingsIntoForm();
   renderFriendsList();
 
-  const invite = new URL(location.href).searchParams.get('invite');
+  const invite = getInviteTokenFromUrl();
   session = loadSession();
 
   if (invite) {
@@ -85,6 +96,10 @@ function bindEvents() {
   $('acceptInviteBtn').addEventListener('click', acceptInvite);
   $('healthBtn').addEventListener('click', healthCheck);
   $('clearNowBtn').addEventListener('click', clearVisibleMessages);
+  const enableNotifyBtn = $('enableNotifyBtn');
+  if (enableNotifyBtn) enableNotifyBtn.addEventListener('click', enableNotifications);
+  const readUnreadBtn = $('readUnreadBtn');
+  if (readUnreadBtn) readUnreadBtn.addEventListener('click', () => readAndDeleteNow(true));
   const saveFriendBtn = $('saveFriendBtn');
   if (saveFriendBtn) saveFriendBtn.addEventListener('click', saveCurrentAsFriend);
   $('resetBtn').addEventListener('click', resetSession);
@@ -114,15 +129,15 @@ function showSetupView() {
   setupView.classList.remove('hidden');
   acceptView.classList.add('hidden');
   chatView.classList.add('hidden');
-  renderFriendsList();
-  setStatus('建立對話後，系統會自動產生一次性邀請連結。');
+  setStatus('建立對話後，系統會自動產生一次性邀請連結與本機解密鑰匙。');
 }
 
 function showAcceptView() {
   setupView.classList.add('hidden');
   acceptView.classList.remove('hidden');
   chatView.classList.add('hidden');
-  setStatus('偵測到邀請連結，等待你接受。');
+  const hasKey = Boolean(getInviteKeyFromHash());
+  setStatus(hasKey ? '偵測到密封邀請連結，等待你接受。' : '邀請連結缺少解密鑰匙，請對方重新複製完整連結。');
 }
 
 async function createInvite() {
@@ -132,16 +147,22 @@ async function createInvite() {
   setBusy($('createInviteBtn'), true, '建立中...');
 
   try {
-    const data = await api('createInvite', { label, settings });
-    session = normalizeSessionSettings(data.session);
+    const keyBase64 = makeSealedKey();
+    const data = await api('createInvite', { settings });
+    session = normalizeSessionSettings({
+      ...data.session,
+      label,
+      sealedKey: keyBase64
+    });
     saveSession(session);
 
     const url = new URL(getAppBaseUrl());
     url.searchParams.set('invite', data.inviteToken);
+    url.hash = `angkey=${encodeURIComponent(keyBase64)}`;
     inviteLink.value = url.toString();
     invitePanel.classList.remove('hidden');
 
-    setStatus(`邀請已建立，${formatSeconds(data.inviteTtlSeconds || settings.inviteTtlSeconds)} 內有效。`);
+    setStatus(`邀請已建立，${formatSeconds(data.inviteTtlSeconds || settings.inviteTtlSeconds)} 內有效。密鑰只在連結 # 後面，後端看不到。`);
   } catch (err) {
     setStatus(err.message || '建立邀請失敗');
   } finally {
@@ -150,7 +171,8 @@ async function createInvite() {
 }
 
 async function acceptInvite() {
-  const inviteToken = new URL(location.href).searchParams.get('invite');
+  const inviteToken = getInviteTokenFromUrl();
+  const inviteKey = getInviteKeyFromHash();
   const label = $('guestName').value.trim() || '我';
 
   if (!inviteToken) {
@@ -158,16 +180,27 @@ async function acceptInvite() {
     return;
   }
 
+  if (!inviteKey) {
+    setStatus('這條邀請連結缺少 #angkey，無法解密。請對方重新複製完整連結。');
+    return;
+  }
+
   setBusy($('acceptInviteBtn'), true, '加入中...');
 
   try {
-    const data = await api('acceptInvite', { inviteToken, label });
-    session = normalizeSessionSettings(data.session);
+    // 先測試密鑰格式，避免收下不能解的邀請。
+    await importAesKey(inviteKey);
+    const data = await api('acceptInvite', { inviteToken });
+    session = normalizeSessionSettings({
+      ...data.session,
+      label,
+      sealedKey: inviteKey
+    });
     saveSession(session);
 
     goCleanBaseUrl();
     enterChat();
-    addMessage('system', '系統', '你已加入這個專屬臨時對話。');
+    addMessage('system', '系統', '你已加入這個密封臨時對話。');
   } catch (err) {
     setStatus(err.message || '接受邀請失敗');
   } finally {
@@ -179,7 +212,7 @@ async function healthCheck() {
   setBusy($('healthBtn'), true, '測試中...');
   try {
     const data = await api('health', {});
-    setStatus(data.ok ? '後端正常。' : (data.error || '後端異常。'));
+    setStatus(data.ok ? `後端正常：${data.version || 'OK'}` : (data.error || '後端異常。'));
   } catch (err) {
     setStatus(err.message || '後端測試失敗');
   } finally {
@@ -188,7 +221,7 @@ async function healthCheck() {
 }
 
 function enterChat() {
-  if (!session || !session.myChannel || !session.peerChannel) {
+  if (!session || !session.myChannel || !session.peerChannel || !session.sealedKey) {
     showSetupView();
     return;
   }
@@ -201,11 +234,13 @@ function enterChat() {
   chatView.classList.remove('hidden');
 
   const settings = getActiveSettings();
-  $('chatTitle').textContent = session.role === 'creator' ? '對話已建立' : '已加入對話';
+  $('chatTitle').textContent = session.role === 'creator' ? '密封對話已建立' : '已加入密封對話';
   const friendName = findFriendNameBySession(session);
   $('chatSub').textContent = `${friendName ? '常用：' + friendName + '｜' : ''}你的顯示名稱：${session.label || '我'}｜畫面 ${settings.displaySeconds} 秒消失｜未讀 ${settings.messageTtlSeconds} 秒過期`;
+  updateNotifyButton();
+  updateUnreadBadge(loadLastUnread());
 
-  setStatus('對話啟用中。');
+  setStatus('密封對話啟用中。後端只暫存 ANG 亂碼包，打開讀取時同步刪除。');
   startPolling();
   maybeShowInstallBox();
   messageInput.focus();
@@ -213,28 +248,79 @@ function enterChat() {
 
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(pollMessages, POLL_INTERVAL_MS);
-  pollMessages();
+  pollTimer = setInterval(() => checkUnreadAndMaybeRead(false), POLL_INTERVAL_MS);
+  checkUnreadAndMaybeRead(true);
 }
 
-async function pollMessages() {
+async function checkUnreadAndMaybeRead(forceReadWhenVisible) {
   if (!session || !session.myChannel) return;
 
   try {
-    const data = await api('pollMessages', { myChannel: session.myChannel });
-    const messages = Array.isArray(data.messages) ? data.messages : [];
+    const data = await api('unreadCount', { myChannel: session.myChannel });
+    const unread = Number(data.unread || 0);
+    updateUnreadBadge(unread);
 
-    messages.forEach((m) => {
-      addMessage(m.system ? 'system' : 'other', m.sender || '對方', m.text || '');
-    });
+    if (unread > lastUnreadCount) {
+      showUnreadNotification(unread);
+    }
+
+    lastUnreadCount = unread;
+    saveLastUnread(unread);
+
+    const chatIsOpen = chatView && !chatView.classList.contains('hidden');
+    const shouldAutoRead = unread > 0 && chatIsOpen && !document.hidden && (forceReadWhenVisible || document.hasFocus());
+
+    if (shouldAutoRead) {
+      setTimeout(() => readAndDeleteNow(false), ACTIVE_READ_DELAY_MS);
+    }
   } catch (err) {
-    setStatus(err.message || '接收失敗');
+    setStatus(err.message || '未讀檢查失敗');
+  }
+}
+
+async function readAndDeleteNow(manual) {
+  if (!session || !session.myChannel || readInFlight) return;
+  readInFlight = true;
+
+  const btn = $('readUnreadBtn');
+  if (manual && btn) setBusy(btn, true, '讀取中');
+
+  try {
+    const data = await api('readAndDeleteSealed', { myChannel: session.myChannel });
+    const packets = Array.isArray(data.packets) ? data.packets : [];
+
+    if (!packets.length) {
+      updateUnreadBadge(0);
+      lastUnreadCount = 0;
+      saveLastUnread(0);
+      if (manual) setStatus('目前沒有未讀訊息。');
+      return;
+    }
+
+    for (const item of packets) {
+      try {
+        const message = await decryptAngPacket(item.packet, session.sealedKey);
+        addMessage(message.system ? 'system' : 'other', message.sender || '對方', message.text || '');
+      } catch (err) {
+        addMessage('system', '系統', '收到一則密封訊息，但這台裝置無法解密。');
+      }
+    }
+
+    updateUnreadBadge(0);
+    lastUnreadCount = 0;
+    saveLastUnread(0);
+    setStatus(`已讀取 ${packets.length} 則；後端快取已同步刪除。`);
+  } catch (err) {
+    setStatus(err.message || '讀取失敗');
+  } finally {
+    readInFlight = false;
+    if (manual && btn) setBusy(btn, false, '讀取');
   }
 }
 
 async function sendMessage() {
-  if (!session || !session.peerChannel) {
-    setStatus('尚未建立對話。');
+  if (!session || !session.peerChannel || !session.sealedKey) {
+    setStatus('尚未建立密封對話。');
     return;
   }
 
@@ -242,18 +328,25 @@ async function sendMessage() {
   if (!text) return;
 
   const settings = getActiveSettings();
+  const sender = session.label || '我';
 
   messageInput.value = '';
   addMessage('mine', '我', text);
 
   try {
-    await api('sendMessage', {
-      peerChannel: session.peerChannel,
-      sender: session.label || '我',
+    const packet = await makeAngPacket({
+      sender,
       text,
+      system: false,
+      timestamp: Date.now()
+    }, session.sealedKey);
+
+    await api('sendSealedMessage', {
+      peerChannel: session.peerChannel,
+      packet,
       messageTtlSeconds: settings.messageTtlSeconds
     });
-    setStatus('已送出。');
+    setStatus('已送出 ANG 密封包。');
   } catch (err) {
     setStatus(err.message || '發送失敗');
     addMessage('system', '系統', '剛剛那則可能沒有送出去。');
@@ -300,7 +393,10 @@ function addMessage(type, sender, text) {
 
 function clearVisibleMessages() {
   chatBox.replaceChildren();
-  setStatus('畫面已立即清空。已讀到的訊息後端快取也已在讀取時刪除。');
+  updateUnreadBadge(0);
+  saveLastUnread(0);
+  lastUnreadCount = 0;
+  setStatus('畫面已立即清空。未讀數也已在本機清除；後端已讀到的密封包在讀取時已刪除。');
 }
 
 async function api(action, payload) {
@@ -331,15 +427,60 @@ async function copyInvite() {
 
   try {
     await navigator.clipboard.writeText(text);
-    setStatus('邀請連結已複製。');
+    setStatus('邀請連結已複製。請確認對方收到完整連結，包含 #angkey。');
   } catch (err) {
     inviteLink.focus();
     inviteLink.select();
     document.execCommand('copy');
-    setStatus('邀請連結已選取，可手動複製。');
+    setStatus('邀請連結已選取，可手動複製。記得包含 #angkey。');
   }
 }
 
+function getInviteTokenFromUrl() {
+  return new URL(location.href).searchParams.get('invite') || '';
+}
+
+function getInviteKeyFromHash() {
+  const raw = String(location.hash || '').replace(/^#/, '');
+  if (!raw) return '';
+  const params = new URLSearchParams(raw);
+  return params.get('angkey') || params.get('key') || '';
+}
+
+function updateUnreadBadge(count) {
+  const unread = Math.max(0, Number(count || 0));
+  const badge = $('unreadBadge');
+  const btn = $('readUnreadBtn');
+
+  if (badge) {
+    badge.textContent = unread > 0 ? `未讀 ${unread}` : '無未讀';
+    badge.classList.toggle('active', unread > 0);
+  }
+
+  if (btn) {
+    btn.disabled = unread <= 0;
+  }
+}
+
+function saveLastUnread(count) {
+  if (!session) return;
+  const key = `${session.myChannel || ''}`;
+  try {
+    const map = JSON.parse(localStorage.getItem(LAST_UNREAD_KEY) || '{}');
+    map[key] = Math.max(0, Number(count || 0));
+    localStorage.setItem(LAST_UNREAD_KEY, JSON.stringify(map));
+  } catch (err) {}
+}
+
+function loadLastUnread() {
+  if (!session) return 0;
+  try {
+    const map = JSON.parse(localStorage.getItem(LAST_UNREAD_KEY) || '{}');
+    return Math.max(0, Number(map[session.myChannel] || 0));
+  } catch (err) {
+    return 0;
+  }
+}
 
 function loadFriends() {
   try {
@@ -349,7 +490,7 @@ function loadFriends() {
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-      .filter((item) => item && item.session && item.session.myChannel && item.session.peerChannel)
+      .filter((item) => item && item.session && item.session.myChannel && item.session.peerChannel && item.session.sealedKey)
       .map((item) => ({
         id: String(item.id || makeLocalId()),
         name: String(item.name || '未命名常用').slice(0, 40),
@@ -412,12 +553,12 @@ function renderFriendsList() {
 }
 
 function saveCurrentAsFriend() {
-  if (!session || !session.myChannel || !session.peerChannel) {
-    setStatus('尚未建立可儲存的對話。');
+  if (!session || !session.myChannel || !session.peerChannel || !session.sealedKey) {
+    setStatus('尚未建立可儲存的密封對話。');
     return;
   }
 
-  const existingName = findFriendNameBySession(session) || session.peerLabel || '常用對話';
+  const existingName = findFriendNameBySession(session) || '常用對話';
   const name = prompt('要把這個對話存成什麼名稱？例如：Lisa、小藍', existingName);
   if (name === null) return;
 
@@ -437,10 +578,7 @@ function saveCurrentAsFriend() {
     updatedAt: Date.now()
   };
 
-  if (existingIndex >= 0) {
-    friends.splice(existingIndex, 1);
-  }
-
+  if (existingIndex >= 0) friends.splice(existingIndex, 1);
   friends.unshift(record);
   saveFriends(friends);
   renderFriendsList();
@@ -525,6 +663,114 @@ function formatDate(timestamp) {
   return `${month}/${day} ${hour}:${minute}`;
 }
 
+async function enableNotifications() {
+  if (!('Notification' in window)) {
+    setStatus('這個瀏覽器不支援網頁通知。');
+    updateNotifyButton();
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    setStatus('通知已被瀏覽器封鎖，請到網站設定重新允許。');
+    updateNotifyButton();
+    return;
+  }
+
+  let permission = Notification.permission;
+  if (permission !== 'granted') {
+    permission = await Notification.requestPermission();
+  }
+
+  if (permission === 'granted') {
+    localStorage.setItem(NOTIFY_PREF_KEY, '1');
+    setStatus('通知已開啟。通知不顯示人名或內容，只提示有新的臨時訊息。');
+    updateNotifyButton();
+    await showTestNotification();
+    return;
+  }
+
+  localStorage.setItem(NOTIFY_PREF_KEY, '0');
+  setStatus('尚未允許通知。');
+  updateNotifyButton();
+}
+
+function notificationsEnabled() {
+  return localStorage.getItem(NOTIFY_PREF_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted';
+}
+
+function updateNotifyButton() {
+  const btn = $('enableNotifyBtn');
+  if (!btn) return;
+
+  if (!('Notification' in window)) {
+    btn.textContent = '不支援';
+    btn.disabled = true;
+    return;
+  }
+
+  if (Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
+    btn.textContent = '通知開';
+    btn.disabled = false;
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    btn.textContent = '通知封鎖';
+    btn.disabled = false;
+    return;
+  }
+
+  btn.textContent = '通知';
+  btn.disabled = false;
+}
+
+async function showTestNotification() {
+  await showNotification('臨時對話通知已開啟', {
+    body: '收到新訊息時只會提醒，不顯示內容。',
+    tag: 'ephemeral-chat-test',
+    renotify: false
+  });
+}
+
+async function showUnreadNotification(unread) {
+  if (!notificationsEnabled()) return;
+  if (!document.hidden && chatView && !chatView.classList.contains('hidden')) return;
+
+  const count = Math.max(1, Number(unread || 1));
+  await showNotification('你有新的臨時訊息', {
+    body: `未讀 ${count} 則。打開後才讀取並同步刪除。`,
+    tag: 'ephemeral-chat-unread',
+    renotify: true
+  });
+}
+
+async function showNotification(title, options) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const payload = {
+    body: options && options.body ? options.body : '',
+    icon: '/assets/icon-192.png',
+    badge: '/assets/icon-192.png',
+    tag: options && options.tag ? options.tag : 'ephemeral-chat',
+    renotify: Boolean(options && options.renotify),
+    data: { url: getAppBaseUrl() }
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration && registration.showNotification) {
+        await registration.showNotification(title, payload);
+        return;
+      }
+    }
+  } catch (err) {}
+
+  try {
+    new Notification(title, payload);
+  } catch (err) {}
+}
+
 function resetSession() {
   if (!confirm('確定要清除本機對話設定？清除後需要重新建立邀請。')) return;
   localStorage.removeItem(SESSION_KEY);
@@ -543,7 +789,7 @@ function loadSession() {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || !parsed.myChannel || !parsed.peerChannel) return null;
+    if (!parsed || !parsed.myChannel || !parsed.peerChannel || !parsed.sealedKey) return null;
     return normalizeSessionSettings(parsed);
   } catch (err) {
     return null;
@@ -588,6 +834,7 @@ function normalizeSessionSettings(value) {
   if (!value) return value;
   return {
     ...value,
+    sealedKey: String(value.sealedKey || ''),
     settings: sanitizeSettings(value.settings || loadLocalSettings())
   };
 }
@@ -638,7 +885,7 @@ function maybeShowInstallBox() {
   }
 
   if (isiOS) {
-    installText.textContent = 'iPhone 請使用 Safari 開啟，按分享按鈕，再選「加入主畫面」。';
+    installText.textContent = 'iPhone 請使用 Safari 開啟，按分享按鈕，再選「加入主畫面」。通知需在加入主畫面後再允許會比較穩。';
     installBtn.textContent = '知道了';
     installBtn.disabled = false;
     installBox.classList.remove('hidden');
@@ -663,6 +910,7 @@ function isStandalone() {
 }
 
 function setBusy(button, busy, text) {
+  if (!button) return;
   button.disabled = busy;
   button.textContent = text;
 }
@@ -676,4 +924,89 @@ function registerServiceWorker() {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   });
+}
+
+function makeSealedKey() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return bytesToBase64Url(bytes);
+}
+
+async function importAesKey(base64UrlKey) {
+  const raw = base64UrlToBytes(base64UrlKey);
+  if (raw.byteLength !== 32) throw new Error('密鑰格式錯誤');
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+async function makeAngPacket(message, base64UrlKey) {
+  const key = await importAesKey(base64UrlKey);
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+
+  const plain = new TextEncoder().encode(JSON.stringify({
+    v: 1,
+    sender: String(message.sender || '對方').slice(0, 40),
+    text: String(message.text || '').slice(0, 1000),
+    system: Boolean(message.system),
+    timestamp: Number(message.timestamp || Date.now())
+  }));
+
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain));
+  const wrapper = {
+    v: 1,
+    type: 'ANG_SEALED_MESSAGE',
+    alg: 'AES-GCM-256',
+    iv: bytesToBase64Url(iv),
+    data: bytesToBase64Url(cipher)
+  };
+
+  return `ANG1.${stringToBase64Url(JSON.stringify(wrapper))}`;
+}
+
+async function decryptAngPacket(packet, base64UrlKey) {
+  const text = String(packet || '');
+  if (!text.startsWith('ANG1.')) throw new Error('不是 ANG 密封包');
+
+  const wrapperText = base64UrlToString(text.slice(5));
+  const wrapper = JSON.parse(wrapperText);
+  if (!wrapper || wrapper.v !== 1 || !wrapper.iv || !wrapper.data) throw new Error('密封包格式錯誤');
+
+  const key = await importAesKey(base64UrlKey);
+  const iv = base64UrlToBytes(wrapper.iv);
+  const data = base64UrlToBytes(wrapper.data);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+  const message = JSON.parse(new TextDecoder().decode(plain));
+
+  return {
+    sender: String(message.sender || '對方').slice(0, 40),
+    text: String(message.text || '').slice(0, 1000),
+    system: Boolean(message.system),
+    timestamp: Number(message.timestamp || Date.now())
+  };
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlToBytes(base64Url) {
+  const base64 = String(base64Url || '').replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function stringToBase64Url(value) {
+  return bytesToBase64Url(new TextEncoder().encode(String(value || '')));
+}
+
+function base64UrlToString(base64Url) {
+  return new TextDecoder().decode(base64UrlToBytes(base64Url));
 }

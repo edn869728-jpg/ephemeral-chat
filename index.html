@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0b2a5b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="臨時對話">
-  <title>臨時對話</title>
+  <meta name="apple-mobile-web-app-title" content="私•話">
+  <title>私•話</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/assets/icon-192.png">
   <link rel="stylesheet" href="/style.css">
@@ -15,10 +15,10 @@
 <body>
   <main class="app-shell">
     <section class="hero-card" id="setupView">
-      <div class="brand-pill">Ephemeral Chat v3.5.1</div>
+      <div class="brand-pill">Ephemeral Chat v3.7</div>
       <h1>一次性連結<br>加入臨時對話</h1>
       <p class="muted">
-        不手動輸入頻道。建立邀請連結後，對方點開就會自動加入專屬對話框；常用對話會存在本機。
+        不手動輸入頻道。訊息會先在手機端加密成 ANG 密封包，後端只暫存亂碼；打開讀取時同步刪除。
       </p>
 
       <label class="field-label" for="displayName">我的顯示名稱</label>
@@ -42,7 +42,7 @@
           <label class="mini-field">
             <span>訊息快取</span>
             <input id="messageTtlSeconds" class="text-input" type="number" inputmode="numeric" min="5" max="600" step="1" value="20">
-            <em>秒內未讀就過期</em>
+            <em>秒內未讀密封包過期</em>
           </label>
 
           <label class="mini-field">
@@ -66,29 +66,32 @@
           <button id="copyInviteBtn" class="primary-btn" type="button">複製邀請連結</button>
           <button id="openChatBtn" class="ghost-btn" type="button">進入對話</button>
         </div>
-        <p class="small-muted">邀請連結是一次性，對方點過後就會失效。過期請重新建立。</p>
+        <p class="small-muted">邀請連結是一次性，請確認複製時包含 #angkey；對方點過後就會失效。過期請重新建立。</p>
       </div>
     </section>
 
     <section class="hero-card hidden" id="acceptView">
       <div class="brand-pill">Invite</div>
       <h1>正在加入對話</h1>
-      <p class="muted">請輸入你的顯示名稱，系統會自動儲存這個專屬對話到本機瀏覽器。</p>
+      <p class="muted">請輸入你的顯示名稱。完整邀請連結會帶有 #angkey，本機會用它解開密封訊息。</p>
 
       <label class="field-label" for="guestName">我的顯示名稱</label>
       <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
 
-      <button id="acceptInviteBtn" class="primary-btn wide" type="button">接受邀請並加入</button>
+      <button id="acceptInviteBtn" class="primary-btn wide" type="button">接受密封邀請並加入</button>
     </section>
 
     <section class="chat-card hidden" id="chatView">
       <header class="chat-header">
         <div>
           <div class="brand-pill small">專屬臨時對話</div>
-          <h2 id="chatTitle">已建立對話</h2>
-          <p id="chatSub" class="small-muted">訊息讀取後即從快取刪除，畫面會依秒數設定移除。</p>
+          <h2 id="chatTitle">已建立密封對話</h2>
+          <p id="chatSub" class="small-muted">後端只暫存 ANG 亂碼包；打開讀取時同步刪除，畫面依秒數移除。</p>
+          <div id="unreadBadge" class="unread-pill">無未讀</div>
         </div>
         <div class="header-actions">
+          <button id="enableNotifyBtn" class="icon-btn" type="button" title="開啟通知">通知</button>
+          <button id="readUnreadBtn" class="icon-btn" type="button" title="讀取並刪除未讀密封包">讀取</button>
           <button id="clearNowBtn" class="icon-btn danger-soft" type="button" title="立即清空畫面">立即刪</button>
           <button id="saveFriendBtn" class="icon-btn" type="button" title="加入常用">加常用</button>
           <button id="resetBtn" class="icon-btn" type="button" title="重置">重置</button>

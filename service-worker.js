@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ephemeral-chat-v351-static-20260623-linkfix';
+const CACHE_NAME = 'ephemeral-chat-v37-static-20260625-sealed';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -38,6 +38,25 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request);
+    })
+  );
+});
+
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) client.navigate(targetUrl);
+          return;
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });
