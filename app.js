@@ -1,25 +1,21 @@
-const SESSION_KEY = 'ephemeral_chat_v38_peek_session';
-const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v38_install_dismissed';
-const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v38_settings';
-const FRIENDS_KEY = 'ephemeral_chat_v38_friends';
-const NOTIFY_PREF_KEY = 'ephemeral_chat_v38_notify_enabled';
-const LAST_UNREAD_KEY = 'ephemeral_chat_v38_last_unread';
+const SESSION_KEY = 'ephemeral_chat_v41_session';
+const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v41_install_dismissed';
+const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v41_settings';
+const FRIENDS_KEY = 'ephemeral_chat_v41_friends';
+const NOTIFY_PREF_KEY = 'ephemeral_chat_v41_notify_enabled';
+const LAST_UNREAD_KEY = 'ephemeral_chat_v41_last_unread';
+const PROFILE_KEY = 'ephemeral_chat_v41_profile';
 
 const DEFAULT_SETTINGS = {
-  // 第一次按住查看後，從這裡開始倒數刪除
   displaySeconds: 5,
-  // 進聊天室後，如果還沒按住查看，密封泡泡最多留多久
   sealedBubbleSeconds: 60,
-  // 對方還沒開 App 前，後端密封包最多保留多久
-  messageTtlSeconds: 20,
-  inviteTtlSeconds: 30 * 60
+  messageTtlSeconds: 3600
 };
 
 const LIMITS = {
   displaySeconds: { min: 1, max: 60 },
   sealedBubbleSeconds: { min: 3, max: 300 },
-  messageTtlSeconds: { min: 5, max: 3600 },
-  inviteTtlSeconds: { min: 30, max: 86400 }
+  messageTtlSeconds: { min: 5, max: 21600 }
 };
 
 const POLL_INTERVAL_MS = 5000;
@@ -47,25 +43,18 @@ const installText = $('installText');
 const friendsPanel = $('friendsPanel');
 const friendsList = $('friendsList');
 
-function getAppBaseUrl() {
-  const url = new URL('./', location.href);
-  url.search = '';
-  url.hash = '';
-  return url.toString();
-}
-
-function goCleanBaseUrl() {
-  history.replaceState({}, '', getAppBaseUrl());
-}
-
 window.addEventListener('load', init);
 window.addEventListener('focus', () => {
   if (session) checkUnreadAndMaybeRead(true);
 });
+
 document.addEventListener('visibilitychange', () => {
   document.body.classList.toggle('privacy-hidden', document.hidden);
+  hideAllPeekMessages();
   if (!document.hidden && session) checkUnreadAndMaybeRead(true);
 });
+
+window.addEventListener('blur', hideAllPeekMessages);
 
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
@@ -77,12 +66,13 @@ async function init() {
   registerServiceWorker();
   bindEvents();
   loadSettingsIntoForm();
+  loadProfileIntoForm();
   renderFriendsList();
 
-  const invite = getInviteTokenFromUrl();
+  const inviteKey = getInviteKeyFromHash();
   session = loadSession();
 
-  if (invite) {
+  if (inviteKey && (!session || session.sealedKey !== inviteKey)) {
     showAcceptView();
     return;
   }
@@ -102,26 +92,41 @@ function bindEvents() {
   $('acceptInviteBtn').addEventListener('click', acceptInvite);
   $('healthBtn').addEventListener('click', healthCheck);
   $('clearNowBtn').addEventListener('click', clearVisibleMessages);
+  $('resetBtn').addEventListener('click', resetSession);
+
+  const saveIdentityBtn = $('saveIdentityBtn');
+  if (saveIdentityBtn) saveIdentityBtn.addEventListener('click', () => saveProfileFromInput('displayName'));
+
+  const saveGuestIdentityBtn = $('saveGuestIdentityBtn');
+  if (saveGuestIdentityBtn) saveGuestIdentityBtn.addEventListener('click', () => saveProfileFromInput('guestName'));
+
   const enableNotifyBtn = $('enableNotifyBtn');
   if (enableNotifyBtn) enableNotifyBtn.addEventListener('click', enableNotifications);
+
   const readUnreadBtn = $('readUnreadBtn');
   if (readUnreadBtn) readUnreadBtn.addEventListener('click', () => readAndDeleteNow(true));
+
   const saveFriendBtn = $('saveFriendBtn');
   if (saveFriendBtn) saveFriendBtn.addEventListener('click', saveCurrentAsFriend);
-  $('resetBtn').addEventListener('click', resetSession);
+
   $('dismissInstallBtn').addEventListener('click', () => {
     localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
     installBox.classList.add('hidden');
   });
   installBtn.addEventListener('click', installPwa);
 
-  ['displaySeconds', 'sealedBubbleSeconds', 'messageTtlSeconds', 'inviteTtlSeconds'].forEach((id) => {
+  ['displaySeconds', 'sealedBubbleSeconds', 'messageTtlSeconds'].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener('change', () => {
       const settings = getSettingsFromForm();
       saveLocalSettings(settings);
       loadSettingsIntoForm(settings);
+      if (session) {
+        session.settings = settings;
+        saveSession(session);
+        updateChatSub();
+      }
     });
   });
 
@@ -131,11 +136,22 @@ function bindEvents() {
   });
 }
 
+function getAppBaseUrl() {
+  const url = new URL('./', location.href);
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function goCleanBaseUrl() {
+  history.replaceState({}, '', getAppBaseUrl());
+}
+
 function showSetupView() {
   setupView.classList.remove('hidden');
   acceptView.classList.add('hidden');
   chatView.classList.add('hidden');
-  setStatus('建立對話後，系統會自動產生一次性邀請連結與本機解密鑰匙。');
+  setStatus('固定身份與好友只存在這台裝置。後端只收發 ANG 密封包。');
 }
 
 function showAcceptView() {
@@ -143,74 +159,94 @@ function showAcceptView() {
   acceptView.classList.remove('hidden');
   chatView.classList.add('hidden');
   const hasKey = Boolean(getInviteKeyFromHash());
-  setStatus(hasKey ? '偵測到密封邀請連結，等待你接受。' : '邀請連結缺少解密鑰匙，請對方重新複製完整連結。');
+  setStatus(hasKey ? '偵測到 #angkey，等待你解鎖加入。' : '連結缺少 #angkey，請對方重新複製完整連結。');
 }
 
 async function createInvite() {
-  const label = $('displayName').value.trim() || '我';
+  const label = getIdentityLabel('displayName');
+  const friendName = $('creatorFriendName') && $('creatorFriendName').value.trim()
+    ? $('creatorFriendName').value.trim().slice(0, 40)
+    : '新好友';
   const settings = getSettingsFromForm();
+
   saveLocalSettings(settings);
-  setBusy($('createInviteBtn'), true, '建立中...');
+  saveProfile({ label });
+  updateIdentityStatus();
+  setBusy($('createInviteBtn'), true, '產生密鑰中...');
 
   try {
-    const keyBase64 = makeSealedKey();
-    const data = await api('createInvite', { settings });
+    const masterKey = makeSealedKey();
+    const creatorChannel = await deriveChannelId(masterKey, 'creator');
+    const guestChannel = await deriveChannelId(masterKey, 'guest');
+
     session = normalizeSessionSettings({
-      ...data.session,
+      role: 'creator',
+      myChannel: creatorChannel,
+      peerChannel: guestChannel,
+      sealedKey: masterKey,
       label,
-      sealedKey: keyBase64
+      settings,
+      createdAt: Date.now()
     });
+
     saveSession(session);
+    saveFriendRecord(friendName, session, false);
+    renderFriendsList();
 
     const url = new URL(getAppBaseUrl());
-    url.searchParams.set('invite', data.inviteToken);
-    url.hash = `angkey=${encodeURIComponent(keyBase64)}`;
+    url.hash = `angkey=${encodeURIComponent(masterKey)}`;
     inviteLink.value = url.toString();
     invitePanel.classList.remove('hidden');
 
-    setStatus(`邀請已建立，${formatSeconds(data.inviteTtlSeconds || settings.inviteTtlSeconds)} 內有效。密鑰只在連結 # 後面，後端看不到。`);
+    setStatus('邀請已建立。請確認複製到的連結包含 #angkey。');
   } catch (err) {
-    setStatus(err.message || '建立邀請失敗');
+    setStatus('建立失敗：' + (err.message || String(err)));
   } finally {
-    setBusy($('createInviteBtn'), false, '建立專屬對話');
+    setBusy($('createInviteBtn'), false, '建立加好友連結');
   }
 }
 
 async function acceptInvite() {
-  const inviteToken = getInviteTokenFromUrl();
   const inviteKey = getInviteKeyFromHash();
-  const label = $('guestName').value.trim() || '我';
-
-  if (!inviteToken) {
-    setStatus('找不到邀請碼。');
-    return;
-  }
+  const label = getIdentityLabel('guestName');
+  const friendName = $('guestFriendName') && $('guestFriendName').value.trim()
+    ? $('guestFriendName').value.trim().slice(0, 40)
+    : '新好友';
 
   if (!inviteKey) {
-    setStatus('這條邀請連結缺少 #angkey，無法解密。請對方重新複製完整連結。');
+    setStatus('無法加入。這條連結缺少 #angkey。');
     return;
   }
 
-  setBusy($('acceptInviteBtn'), true, '加入中...');
+  setBusy($('acceptInviteBtn'), true, '解鎖中...');
 
   try {
-    // 先測試密鑰格式，避免收下不能解的邀請。
     await importAesKey(inviteKey);
-    const data = await api('acceptInvite', { inviteToken });
+    const guestChannel = await deriveChannelId(inviteKey, 'guest');
+    const creatorChannel = await deriveChannelId(inviteKey, 'creator');
+
     session = normalizeSessionSettings({
-      ...data.session,
+      role: 'guest',
+      myChannel: guestChannel,
+      peerChannel: creatorChannel,
+      sealedKey: inviteKey,
       label,
-      sealedKey: inviteKey
+      settings: loadLocalSettings(),
+      createdAt: Date.now()
     });
+
+    saveProfile({ label });
     saveSession(session);
+    saveFriendRecord(friendName, session, false);
+    renderFriendsList();
 
     goCleanBaseUrl();
     enterChat();
-    addMessage('system', '系統', '你已加入這個密封臨時對話。');
+    addMessage('system', '系統', '你已加入這個永久密封頻道。');
   } catch (err) {
-    setStatus(err.message || '接受邀請失敗');
+    setStatus('密鑰無效或格式錯誤。');
   } finally {
-    setBusy($('acceptInviteBtn'), false, '接受邀請並加入');
+    setBusy($('acceptInviteBtn'), false, '解鎖並加入好友');
   }
 }
 
@@ -218,11 +254,11 @@ async function healthCheck() {
   setBusy($('healthBtn'), true, '測試中...');
   try {
     const data = await api('health', {});
-    setStatus(data.ok ? `後端正常：${data.version || 'OK'}` : (data.error || '後端異常。'));
+    setStatus(data.ok ? `後端正常：${data.version || 'OK'}` : (data.error || '後端異常'));
   } catch (err) {
     setStatus(err.message || '後端測試失敗');
   } finally {
-    setBusy($('healthBtn'), false, '測試後端');
+    setBusy($('healthBtn'), false, '測試連線');
   }
 }
 
@@ -239,17 +275,22 @@ function enterChat() {
   acceptView.classList.add('hidden');
   chatView.classList.remove('hidden');
 
-  const settings = getActiveSettings();
-  $('chatTitle').textContent = session.role === 'creator' ? '密封對話已建立' : '已加入密封對話';
-  const friendName = findFriendNameBySession(session);
-  $('chatSub').textContent = `${friendName ? '常用：' + friendName + '｜' : ''}按住查看後 ${settings.displaySeconds} 秒刪除｜未開封泡泡 ${settings.sealedBubbleSeconds} 秒消失｜未讀 ${settings.messageTtlSeconds} 秒過期`;
+  $('chatTitle').textContent = session.role === 'creator' ? '密封對話｜我建立的' : '密封對話｜已加入';
+  updateChatSub();
   updateNotifyButton();
   updateUnreadBadge(loadLastUnread());
 
-  setStatus('密封對話啟用中。後端只暫存 ANG 亂碼包，打開讀取時同步刪除。');
+  setStatus('端到端加密運作中。GAS 只看到亂碼頻道與 ANG1 密封包。');
   startPolling();
   maybeShowInstallBox();
-  messageInput.focus();
+  setTimeout(() => messageInput.focus(), 80);
+}
+
+function updateChatSub() {
+  if (!session || !$('chatSub')) return;
+  const friendName = findFriendNameBySession(session);
+  const settings = getActiveSettings();
+  $('chatSub').textContent = `${friendName ? '好友：' + friendName + '｜' : ''}離線保留 ${formatSeconds(settings.messageTtlSeconds)}｜按圓點查看 ${settings.displaySeconds} 秒`;
 }
 
 function startPolling() {
@@ -263,24 +304,19 @@ async function checkUnreadAndMaybeRead(forceReadWhenVisible) {
 
   try {
     const data = await api('unreadCount', { myChannel: session.myChannel });
-    const unread = Number(data.unread || 0);
-    updateUnreadBadge(unread);
+    const unread = Math.max(0, Number(data.unread || 0));
 
-    if (unread > lastUnreadCount) {
-      showUnreadNotification(unread);
-    }
+    updateUnreadBadge(unread);
+    if (unread > lastUnreadCount) showUnreadNotification(unread);
 
     lastUnreadCount = unread;
     saveLastUnread(unread);
 
     const chatIsOpen = chatView && !chatView.classList.contains('hidden');
-    const shouldAutoRead = unread > 0 && chatIsOpen && !document.hidden && (forceReadWhenVisible || document.hasFocus());
-
-    if (shouldAutoRead) {
-      setTimeout(() => readAndDeleteNow(false), ACTIVE_READ_DELAY_MS);
-    }
+    const shouldRead = unread > 0 && chatIsOpen && !document.hidden && (forceReadWhenVisible || document.hasFocus());
+    if (shouldRead) setTimeout(() => readAndDeleteNow(false), ACTIVE_READ_DELAY_MS);
   } catch (err) {
-    setStatus(err.message || '未讀檢查失敗');
+    // 背景輪詢失敗不打擾畫面。
   }
 }
 
@@ -289,7 +325,7 @@ async function readAndDeleteNow(manual) {
   readInFlight = true;
 
   const btn = $('readUnreadBtn');
-  if (manual && btn) setBusy(btn, true, '讀取中');
+  if (manual && btn) setBusy(btn, true, '收取中');
 
   try {
     const data = await api('readAndDeleteSealed', { myChannel: session.myChannel });
@@ -299,7 +335,7 @@ async function readAndDeleteNow(manual) {
       updateUnreadBadge(0);
       lastUnreadCount = 0;
       saveLastUnread(0);
-      if (manual) setStatus('目前沒有未讀訊息。');
+      if (manual) setStatus('目前沒有新密封包。');
       return;
     }
 
@@ -308,19 +344,19 @@ async function readAndDeleteNow(manual) {
         const message = await decryptAngPacket(item.packet, session.sealedKey);
         addMessage(message.system ? 'system' : 'other', message.sender || '對方', message.text || '');
       } catch (err) {
-        addMessage('system', '系統', '收到一則密封訊息，但這台裝置無法解密。');
+        addMessage('system', '系統', '收到一則無法解密的封包。');
       }
     }
 
     updateUnreadBadge(0);
     lastUnreadCount = 0;
     saveLastUnread(0);
-    setStatus(`已讀取 ${packets.length} 則；後端快取已同步刪除。`);
+    setStatus(`已收取並銷毀 ${packets.length} 則密封包。`);
   } catch (err) {
-    setStatus(err.message || '讀取失敗');
+    if (manual) setStatus(err.message || '收取失敗');
   } finally {
     readInFlight = false;
-    if (manual && btn) setBusy(btn, false, '讀取');
+    if (manual && btn) setBusy(btn, false, '收訊');
   }
 }
 
@@ -340,19 +376,13 @@ async function sendMessage() {
   addMessage('mine', '我', text);
 
   try {
-    const packet = await makeAngPacket({
-      sender,
-      text,
-      system: false,
-      timestamp: Date.now()
-    }, session.sealedKey);
-
+    const packet = await makeAngPacket({ sender, text, system: false, timestamp: Date.now() }, session.sealedKey);
     await api('sendSealedMessage', {
       peerChannel: session.peerChannel,
       packet,
       messageTtlSeconds: settings.messageTtlSeconds
     });
-    setStatus('已送出 ANG 密封包。');
+    setStatus('ANG1 密封包已送出。');
   } catch (err) {
     setStatus(err.message || '發送失敗');
     addMessage('system', '系統', '剛剛那則可能沒有送出去。');
@@ -380,11 +410,20 @@ function addMessage(type, sender, text) {
   div.appendChild(textEl);
 
   let hintEl = null;
+  let peekDot = null;
+
   if (isPeekMessage) {
     hintEl = document.createElement('span');
     hintEl.className = 'peek-hint';
-    hintEl.textContent = `按住查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
+    hintEl.textContent = `按住下方圓點查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
     div.appendChild(hintEl);
+
+    peekDot = document.createElement('button');
+    peekDot.type = 'button';
+    peekDot.className = 'peek-dot';
+    peekDot.setAttribute('aria-label', '按住查看密封訊息');
+    peekDot.title = '按住查看，放開模糊';
+    div.appendChild(peekDot);
   }
 
   const deleteBtn = document.createElement('button');
@@ -392,7 +431,6 @@ function addMessage(type, sender, text) {
   deleteBtn.className = 'msg-delete';
   deleteBtn.textContent = '立即刪';
   deleteBtn.title = '立即從畫面刪除';
-  deleteBtn.setAttribute('aria-label', '立即從畫面刪除這則訊息');
   div.appendChild(deleteBtn);
 
   let timer = null;
@@ -406,7 +444,6 @@ function addMessage(type, sender, text) {
   }
 
   if (isPeekMessage) {
-    // 還沒按住查看前，只是一顆密封泡泡；超時就消失。
     timer = setTimeout(removeMessage, unopenedLifetimeMs);
 
     const reveal = (event) => {
@@ -416,7 +453,6 @@ function addMessage(type, sender, text) {
       if (senderEl) senderEl.textContent = sender || '對方';
       if (hintEl) hintEl.textContent = `查看中｜${settings.displaySeconds} 秒後刪除`;
 
-      // 第一次按住查看，才開始「看訊息後幾秒消失」倒數。
       if (!opened) {
         opened = true;
         if (timer) clearTimeout(timer);
@@ -428,17 +464,21 @@ function addMessage(type, sender, text) {
       if (!div.isConnected) return;
       div.classList.remove('revealed');
       if (senderEl) senderEl.textContent = '密封訊息';
-      if (hintEl) hintEl.textContent = opened ? '已開封倒數中｜按住可再次查看' : `按住查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
+      if (hintEl) hintEl.textContent = opened ? '已開封倒數中｜按住圓點可再次查看' : `按住下方圓點查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
     };
 
-    div.addEventListener('pointerdown', reveal);
-    div.addEventListener('pointerup', hide);
-    div.addEventListener('pointercancel', hide);
-    div.addEventListener('pointerleave', hide);
+    peekDot.addEventListener('pointerdown', reveal);
+    peekDot.addEventListener('pointerup', hide);
+    peekDot.addEventListener('pointercancel', hide);
+    peekDot.addEventListener('pointerleave', hide);
+    peekDot.addEventListener('touchstart', reveal, { passive: false });
+    peekDot.addEventListener('touchend', hide);
     window.addEventListener('blur', hide);
-  } else {
+  } else if (type !== 'system') {
     div.style.setProperty('--vanish-ms', `${openedLifetimeMs}ms`);
     timer = setTimeout(removeMessage, openedLifetimeMs);
+  } else {
+    timer = setTimeout(removeMessage, Math.max(3000, openedLifetimeMs));
   }
 
   deleteBtn.addEventListener('click', (event) => {
@@ -449,12 +489,17 @@ function addMessage(type, sender, text) {
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
+
+function hideAllPeekMessages() {
+  document.querySelectorAll('.msg.peek.revealed').forEach((node) => node.classList.remove('revealed'));
+}
+
 function clearVisibleMessages() {
   chatBox.replaceChildren();
   updateUnreadBadge(0);
   saveLastUnread(0);
   lastUnreadCount = 0;
-  setStatus('畫面已立即清空。未讀數也已在本機清除；後端已讀到的密封包在讀取時已刪除。');
+  setStatus('畫面已清空。');
 }
 
 async function api(action, payload) {
@@ -485,17 +530,13 @@ async function copyInvite() {
 
   try {
     await navigator.clipboard.writeText(text);
-    setStatus('邀請連結已複製。請確認對方收到完整連結，包含 #angkey。');
+    setStatus('邀請連結已複製。請確認包含 #angkey。');
   } catch (err) {
     inviteLink.focus();
     inviteLink.select();
     document.execCommand('copy');
-    setStatus('邀請連結已選取，可手動複製。記得包含 #angkey。');
+    setStatus('邀請連結已選取，可手動複製。');
   }
-}
-
-function getInviteTokenFromUrl() {
-  return new URL(location.href).searchParams.get('invite') || '';
 }
 
 function getInviteKeyFromHash() {
@@ -507,25 +548,18 @@ function getInviteKeyFromHash() {
 
 function updateUnreadBadge(count) {
   const unread = Math.max(0, Number(count || 0));
-  const badge = $('unreadBadge');
-  const btn = $('readUnreadBtn');
-
-  if (badge) {
-    badge.textContent = unread > 0 ? `未讀 ${unread}` : '無未讀';
-    badge.classList.toggle('active', unread > 0);
+  if ($('unreadBadge')) {
+    $('unreadBadge').textContent = unread > 0 ? `新訊息 ${unread}` : '新訊息 0';
+    $('unreadBadge').classList.toggle('active', unread > 0);
   }
-
-  if (btn) {
-    btn.disabled = unread <= 0;
-  }
+  if ($('readUnreadBtn')) $('readUnreadBtn').disabled = unread <= 0;
 }
 
 function saveLastUnread(count) {
   if (!session) return;
-  const key = `${session.myChannel || ''}`;
   try {
     const map = JSON.parse(localStorage.getItem(LAST_UNREAD_KEY) || '{}');
-    map[key] = Math.max(0, Number(count || 0));
+    map[session.myChannel || ''] = Math.max(0, Number(count || 0));
     localStorage.setItem(LAST_UNREAD_KEY, JSON.stringify(map));
   } catch (err) {}
 }
@@ -540,30 +574,68 @@ function loadLastUnread() {
   }
 }
 
+function loadProfile() {
+  try {
+    return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') || {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function saveProfile(profile) {
+  const old = loadProfile();
+  const next = { ...old, ...profile, updatedAt: Date.now() };
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+  return next;
+}
+
+function loadProfileIntoForm() {
+  const profile = loadProfile();
+  if (profile.label) {
+    if ($('displayName')) $('displayName').value = profile.label;
+    if ($('guestName')) $('guestName').value = profile.label;
+  }
+  updateIdentityStatus();
+}
+
+function saveProfileFromInput(inputId) {
+  const input = $(inputId);
+  const label = input && input.value.trim() ? input.value.trim().slice(0, 30) : '我';
+  saveProfile({ label });
+  if ($('displayName')) $('displayName').value = label;
+  if ($('guestName')) $('guestName').value = label;
+  updateIdentityStatus();
+  setStatus('固定身份已儲存。');
+}
+
+function getIdentityLabel(inputId) {
+  const input = $(inputId);
+  const profile = loadProfile();
+  const label = input && input.value.trim() ? input.value.trim().slice(0, 30) : (profile.label || '我');
+  if (input) input.value = label;
+  return label;
+}
+
+function updateIdentityStatus() {
+  const profile = loadProfile();
+  if ($('identityStatus')) {
+    $('identityStatus').textContent = profile.label ? `目前身份：${profile.label}` : '第一次使用先存身份；之後建立邀請與聊天都會自動使用這個名字。';
+  }
+}
+
 function loadFriends() {
   try {
     const raw = localStorage.getItem(FRIENDS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter((item) => item && item.session && item.session.myChannel && item.session.peerChannel && item.session.sealedKey)
-      .map((item) => ({
-        id: String(item.id || makeLocalId()),
-        name: String(item.name || '未命名常用').slice(0, 40),
-        session: normalizeSessionSettings(item.session),
-        updatedAt: Number(item.updatedAt || Date.now())
-      }))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 20);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
     return [];
   }
 }
 
 function saveFriends(friends) {
-  localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends.slice(0, 20)));
+  localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends.slice(0, 50)));
 }
 
 function renderFriendsList() {
@@ -586,9 +658,15 @@ function renderFriendsList() {
     const main = document.createElement('button');
     main.type = 'button';
     main.className = 'friend-main';
-    main.innerHTML = `<strong></strong><span></span>`;
-    main.querySelector('strong').textContent = friend.name;
-    main.querySelector('span').textContent = `上次使用：${formatDate(friend.updatedAt)}`;
+
+    const title = document.createElement('strong');
+    title.textContent = friend.name || '未命名好友';
+
+    const sub = document.createElement('span');
+    sub.textContent = `上次使用：${formatDate(friend.updatedAt || Date.now())}`;
+
+    main.appendChild(title);
+    main.appendChild(sub);
     main.addEventListener('click', () => openFriend(friend.id));
 
     const rename = document.createElement('button');
@@ -611,226 +689,131 @@ function renderFriendsList() {
 }
 
 function saveCurrentAsFriend() {
-  if (!session || !session.myChannel || !session.peerChannel || !session.sealedKey) {
-    setStatus('尚未建立可儲存的密封對話。');
-    return;
-  }
-
+  if (!session || !session.myChannel) return;
   const existingName = findFriendNameBySession(session) || '常用對話';
-  const name = prompt('要把這個對話存成什麼名稱？例如：Lisa、小藍', existingName);
-  if (name === null) return;
+  const name = prompt('要把這個頻道存成什麼名稱？', existingName);
+  if (!name) return;
+  saveFriendRecord(name.trim().slice(0, 40), session, true);
+  renderFriendsList();
+  updateChatSub();
+  setStatus('已加入常用。');
+}
 
-  const safeName = String(name || '').trim().slice(0, 40);
-  if (!safeName) {
-    setStatus('名稱不可為空。');
-    return;
-  }
-
+function saveFriendRecord(name, sessionValue, askOverwrite) {
+  if (!sessionValue || !sessionValue.myChannel) return;
   const friends = loadFriends();
-  const key = friendSessionKey(session);
-  const existingIndex = friends.findIndex((item) => friendSessionKey(item.session) === key);
+  const existingIndex = friends.findIndex((item) => item.session && item.session.myChannel === sessionValue.myChannel);
   const record = {
     id: existingIndex >= 0 ? friends[existingIndex].id : makeLocalId(),
-    name: safeName,
-    session: normalizeSessionSettings(session),
+    name: name || '常用對話',
+    session: normalizeSessionSettings(sessionValue),
     updatedAt: Date.now()
   };
 
-  if (existingIndex >= 0) friends.splice(existingIndex, 1);
+  if (existingIndex >= 0) {
+    if (!askOverwrite || confirm('這個好友已存在，要更新名稱與設定嗎？')) {
+      friends.splice(existingIndex, 1);
+    } else {
+      return;
+    }
+  }
+
   friends.unshift(record);
   saveFriends(friends);
-  renderFriendsList();
-  enterChat();
-  setStatus(`已加入常用：${safeName}`);
 }
 
 function openFriend(id) {
   const friends = loadFriends();
   const index = friends.findIndex((item) => item.id === id);
-  if (index < 0) {
-    setStatus('找不到這個常用對話。');
-    renderFriendsList();
-    return;
-  }
+  if (index < 0) return;
 
-  const item = friends[index];
-  item.updatedAt = Date.now();
-  friends.splice(index, 1);
-  friends.unshift(item);
-  saveFriends(friends);
-
-  session = normalizeSessionSettings(item.session);
+  friends[index].updatedAt = Date.now();
+  session = normalizeSessionSettings(friends[index].session);
   saveSession(session);
+  saveFriends(friends);
   goCleanBaseUrl();
   enterChat();
-  addMessage('system', '系統', `已開啟常用對話：${item.name}`);
+  renderFriendsList();
 }
 
 function renameFriend(id) {
   const friends = loadFriends();
-  const item = friends.find((friend) => friend.id === id);
-  if (!item) return;
-
-  const name = prompt('新的常用名稱', item.name);
-  if (name === null) return;
-
-  const safeName = String(name || '').trim().slice(0, 40);
-  if (!safeName) return;
-
-  item.name = safeName;
-  item.updatedAt = Date.now();
+  const index = friends.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  const name = prompt('新的好友名稱', friends[index].name || '常用對話');
+  if (!name) return;
+  friends[index].name = name.trim().slice(0, 40);
+  friends[index].updatedAt = Date.now();
   saveFriends(friends);
   renderFriendsList();
-  setStatus(`已改名：${safeName}`);
+  updateChatSub();
 }
 
 function deleteFriend(id) {
-  const friends = loadFriends();
-  const item = friends.find((friend) => friend.id === id);
-  if (!item) return;
-  if (!confirm(`確定從常用刪除「${item.name}」？這只會刪除本機常用，不會影響對方。`)) return;
-
-  saveFriends(friends.filter((friend) => friend.id !== id));
+  if (!confirm('刪除這個本機好友捷徑？不會影響對方。')) return;
+  saveFriends(loadFriends().filter((item) => item.id !== id));
   renderFriendsList();
-  setStatus('已從常用刪除。');
 }
 
 function findFriendNameBySession(value) {
   if (!value) return '';
-  const key = friendSessionKey(value);
-  const found = loadFriends().find((item) => friendSessionKey(item.session) === key);
+  const found = loadFriends().find((item) => item.session && item.session.myChannel === value.myChannel);
   return found ? found.name : '';
 }
 
-function friendSessionKey(value) {
-  if (!value) return '';
-  return `${value.myChannel || ''}->${value.peerChannel || ''}`;
-}
-
 function makeLocalId() {
-  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
-  return `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function formatDate(timestamp) {
-  const date = new Date(Number(timestamp || Date.now()));
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
-  return `${month}/${day} ${hour}:${minute}`;
+  const d = new Date(Number(timestamp || Date.now()));
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 async function enableNotifications() {
   if (!('Notification' in window)) {
-    setStatus('這個瀏覽器不支援網頁通知。');
-    updateNotifyButton();
-    return;
-  }
-
-  if (Notification.permission === 'denied') {
-    setStatus('通知已被瀏覽器封鎖，請到網站設定重新允許。');
-    updateNotifyButton();
+    setStatus('這個瀏覽器不支援通知。');
     return;
   }
 
   let permission = Notification.permission;
-  if (permission !== 'granted') {
-    permission = await Notification.requestPermission();
-  }
+  if (permission !== 'granted') permission = await Notification.requestPermission();
 
   if (permission === 'granted') {
     localStorage.setItem(NOTIFY_PREF_KEY, '1');
-    setStatus('通知已開啟。通知不顯示人名或內容，只提示有新的臨時訊息。');
     updateNotifyButton();
-    await showTestNotification();
-    return;
+    new Notification('通知已開啟', { body: '通知不會顯示訊息內容。', icon: '/assets/icon-192.png' });
+    setStatus('通知已開啟。');
+  } else {
+    setStatus('通知未開啟。');
   }
-
-  localStorage.setItem(NOTIFY_PREF_KEY, '0');
-  setStatus('尚未允許通知。');
-  updateNotifyButton();
-}
-
-function notificationsEnabled() {
-  return localStorage.getItem(NOTIFY_PREF_KEY) === '1' && 'Notification' in window && Notification.permission === 'granted';
 }
 
 function updateNotifyButton() {
   const btn = $('enableNotifyBtn');
   if (!btn) return;
 
-  if (!('Notification' in window)) {
-    btn.textContent = '不支援';
-    btn.disabled = true;
-    return;
-  }
-
-  if (Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
+  if ('Notification' in window && Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
     btn.textContent = '通知開';
-    btn.disabled = false;
-    return;
+  } else {
+    btn.textContent = '通知';
   }
-
-  if (Notification.permission === 'denied') {
-    btn.textContent = '通知封鎖';
-    btn.disabled = false;
-    return;
-  }
-
-  btn.textContent = '通知';
-  btn.disabled = false;
 }
 
-async function showTestNotification() {
-  await showNotification('臨時對話通知已開啟', {
-    body: '收到新訊息時只會提醒，不顯示內容。',
-    tag: 'ephemeral-chat-test',
-    renotify: false
-  });
-}
-
-async function showUnreadNotification(unread) {
-  if (!notificationsEnabled()) return;
+function showUnreadNotification(unread) {
+  if (!('Notification' in window)) return;
+  if (localStorage.getItem(NOTIFY_PREF_KEY) !== '1' || Notification.permission !== 'granted') return;
   if (!document.hidden && chatView && !chatView.classList.contains('hidden')) return;
 
-  const count = Math.max(1, Number(unread || 1));
-  await showNotification('你有新的臨時訊息', {
-    body: `未讀 ${count} 則。打開後才讀取並同步刪除。`,
-    tag: 'ephemeral-chat-unread',
-    renotify: true
-  });
-}
-
-async function showNotification(title, options) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-  const payload = {
-    body: options && options.body ? options.body : '',
+  new Notification('新的臨時訊息', {
+    body: `新訊息 ${unread} 則`,
     icon: '/assets/icon-192.png',
-    badge: '/assets/icon-192.png',
-    tag: options && options.tag ? options.tag : 'ephemeral-chat',
-    renotify: Boolean(options && options.renotify),
-    data: { url: getAppBaseUrl() }
-  };
-
-  try {
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration && registration.showNotification) {
-        await registration.showNotification(title, payload);
-        return;
-      }
-    }
-  } catch (err) {}
-
-  try {
-    new Notification(title, payload);
-  } catch (err) {}
+    tag: 'ephemeral-unread'
+  });
 }
 
 function resetSession() {
-  if (!confirm('確定要清除本機對話設定？清除後需要重新建立邀請。')) return;
+  if (!confirm('確定要離開目前對話？好友清單不會被刪除。')) return;
   localStorage.removeItem(SESSION_KEY);
   session = null;
   if (pollTimer) clearInterval(pollTimer);
@@ -870,18 +853,16 @@ function saveLocalSettings(settings) {
 
 function loadSettingsIntoForm(settings) {
   const value = sanitizeSettings(settings || loadLocalSettings());
-  $('displaySeconds').value = value.displaySeconds;
-  $('sealedBubbleSeconds').value = value.sealedBubbleSeconds;
-  $('messageTtlSeconds').value = value.messageTtlSeconds;
-  $('inviteTtlSeconds').value = value.inviteTtlSeconds;
+  if ($('displaySeconds')) $('displaySeconds').value = value.displaySeconds;
+  if ($('sealedBubbleSeconds')) $('sealedBubbleSeconds').value = value.sealedBubbleSeconds;
+  if ($('messageTtlSeconds')) $('messageTtlSeconds').value = value.messageTtlSeconds;
 }
 
 function getSettingsFromForm() {
   return sanitizeSettings({
-    displaySeconds: $('displaySeconds').value,
-    sealedBubbleSeconds: $('sealedBubbleSeconds').value,
-    messageTtlSeconds: $('messageTtlSeconds').value,
-    inviteTtlSeconds: $('inviteTtlSeconds').value
+    displaySeconds: $('displaySeconds') ? $('displaySeconds').value : DEFAULT_SETTINGS.displaySeconds,
+    sealedBubbleSeconds: $('sealedBubbleSeconds') ? $('sealedBubbleSeconds').value : DEFAULT_SETTINGS.sealedBubbleSeconds,
+    messageTtlSeconds: $('messageTtlSeconds') ? $('messageTtlSeconds').value : DEFAULT_SETTINGS.messageTtlSeconds
   });
 }
 
@@ -894,7 +875,6 @@ function normalizeSessionSettings(value) {
   if (!value) return value;
   return {
     ...value,
-    sealedKey: String(value.sealedKey || ''),
     settings: sanitizeSettings(value.settings || loadLocalSettings())
   };
 }
@@ -904,8 +884,7 @@ function sanitizeSettings(value) {
   return {
     displaySeconds: clampNumber(source.displaySeconds, DEFAULT_SETTINGS.displaySeconds, LIMITS.displaySeconds.min, LIMITS.displaySeconds.max),
     sealedBubbleSeconds: clampNumber(source.sealedBubbleSeconds, DEFAULT_SETTINGS.sealedBubbleSeconds, LIMITS.sealedBubbleSeconds.min, LIMITS.sealedBubbleSeconds.max),
-    messageTtlSeconds: clampNumber(source.messageTtlSeconds, DEFAULT_SETTINGS.messageTtlSeconds, LIMITS.messageTtlSeconds.min, LIMITS.messageTtlSeconds.max),
-    inviteTtlSeconds: clampNumber(source.inviteTtlSeconds, DEFAULT_SETTINGS.inviteTtlSeconds, LIMITS.inviteTtlSeconds.min, LIMITS.inviteTtlSeconds.max)
+    messageTtlSeconds: clampNumber(source.messageTtlSeconds, DEFAULT_SETTINGS.messageTtlSeconds, LIMITS.messageTtlSeconds.min, LIMITS.messageTtlSeconds.max)
   };
 }
 
@@ -946,7 +925,7 @@ function maybeShowInstallBox() {
   }
 
   if (isiOS) {
-    installText.textContent = 'iPhone 請使用 Safari 開啟，按分享按鈕，再選「加入主畫面」。通知需在加入主畫面後再允許會比較穩。';
+    installText.textContent = 'iPhone 請使用 Safari 開啟，按分享按鈕，再選「加入主畫面」。';
     installBtn.textContent = '知道了';
     installBtn.disabled = false;
     installBox.classList.remove('hidden');
@@ -977,14 +956,12 @@ function setBusy(button, busy, text) {
 }
 
 function setStatus(text) {
-  statusBar.textContent = text;
+  if (statusBar) statusBar.textContent = text;
 }
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
-  });
+  navigator.serviceWorker.register('/service-worker.js').catch(() => {});
 }
 
 function makeSealedKey() {
@@ -993,9 +970,21 @@ function makeSealedKey() {
   return bytesToBase64Url(bytes);
 }
 
+async function deriveChannelId(masterKeyBase64, roleStr) {
+  const rawKey = base64UrlToBytes(masterKeyBase64);
+  const roleBytes = new TextEncoder().encode(`ANG_CHANNEL_V1:${roleStr}`);
+  const data = new Uint8Array(rawKey.length + roleBytes.length);
+  data.set(rawKey);
+  data.set(roleBytes, rawKey.length);
+
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return 'ch_' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 48);
+}
+
 async function importAesKey(base64UrlKey) {
   const raw = base64UrlToBytes(base64UrlKey);
-  if (raw.byteLength !== 32) throw new Error('密鑰格式錯誤');
+  if (raw.length !== 32) throw new Error('Invalid key length');
   return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
@@ -1003,71 +992,47 @@ async function makeAngPacket(message, base64UrlKey) {
   const key = await importAesKey(base64UrlKey);
   const iv = new Uint8Array(12);
   crypto.getRandomValues(iv);
-
-  const plain = new TextEncoder().encode(JSON.stringify({
-    v: 1,
-    sender: String(message.sender || '對方').slice(0, 40),
-    text: String(message.text || '').slice(0, 1000),
-    system: Boolean(message.system),
-    timestamp: Number(message.timestamp || Date.now())
-  }));
-
+  const plain = new TextEncoder().encode(JSON.stringify(message));
   const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain));
   const wrapper = {
     v: 1,
-    type: 'ANG_SEALED_MESSAGE',
-    alg: 'AES-GCM-256',
+    type: 'ANG',
+    alg: 'AES-GCM',
     iv: bytesToBase64Url(iv),
     data: bytesToBase64Url(cipher)
   };
-
   return `ANG1.${stringToBase64Url(JSON.stringify(wrapper))}`;
 }
 
 async function decryptAngPacket(packet, base64UrlKey) {
   const text = String(packet || '');
-  if (!text.startsWith('ANG1.')) throw new Error('不是 ANG 密封包');
-
-  const wrapperText = base64UrlToString(text.slice(5));
-  const wrapper = JSON.parse(wrapperText);
-  if (!wrapper || wrapper.v !== 1 || !wrapper.iv || !wrapper.data) throw new Error('密封包格式錯誤');
-
+  if (!text.startsWith('ANG1.')) throw new Error('Invalid packet');
+  const wrapper = JSON.parse(base64UrlToString(text.slice(5)));
   const key = await importAesKey(base64UrlKey);
-  const iv = base64UrlToBytes(wrapper.iv);
-  const data = base64UrlToBytes(wrapper.data);
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
-  const message = JSON.parse(new TextDecoder().decode(plain));
-
-  return {
-    sender: String(message.sender || '對方').slice(0, 40),
-    text: String(message.text || '').slice(0, 1000),
-    system: Boolean(message.system),
-    timestamp: Number(message.timestamp || Date.now())
-  };
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: base64UrlToBytes(wrapper.iv) }, key, base64UrlToBytes(wrapper.data));
+  return JSON.parse(new TextDecoder().decode(plain));
 }
 
 function bytesToBase64Url(bytes) {
   let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   }
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-function base64UrlToBytes(base64Url) {
-  const base64 = String(base64Url || '').replace(/-/g, '+').replace(/_/g, '/');
-  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-  const binary = atob(padded);
+function base64UrlToBytes(str) {
+  const value = String(str || '');
+  const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4));
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
 
 function stringToBase64Url(value) {
-  return bytesToBase64Url(new TextEncoder().encode(String(value || '')));
+  return bytesToBase64Url(new TextEncoder().encode(value));
 }
 
-function base64UrlToString(base64Url) {
-  return new TextDecoder().decode(base64UrlToBytes(base64Url));
+function base64UrlToString(value) {
+  return new TextDecoder().decode(base64UrlToBytes(value));
 }
