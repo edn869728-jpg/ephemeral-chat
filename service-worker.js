@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ephemeral-chat-v38-static-20260625-peek';
+const CACHE_NAME = 'si-hua-v41-static-20260630';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
