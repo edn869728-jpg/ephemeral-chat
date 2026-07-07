@@ -1,4 +1,4 @@
-const CACHE_NAME = 'private-chat-v44-touch-fix-20260707-2';
+const CACHE_NAME = 'private-chat-v44-touch-safe-20260707-3';
 const APP_BASE = new URL('./', self.location.href).pathname;
 const STATIC_ASSETS = [
   './',
@@ -30,6 +30,14 @@ self.addEventListener('activate', (event) => {
         return Promise.resolve();
       })))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((windowClients) => Promise.all(windowClients.map((client) => {
+        try {
+          return client.navigate(client.url);
+        } catch (_) {
+          return Promise.resolve();
+        }
+      })))
   );
 });
 
@@ -65,16 +73,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         if (response && response.ok && url.origin === self.location.origin) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
         return response;
-      });
-      return cached || network;
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });
 
