@@ -8,84 +8,223 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="私・話">
   <title>私・話</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/assets/icon-192.png">
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/layout-addon.css">
+
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./layout-addon.css">
+
+  <style id="touch-unlock-fix">
+    html,
+    body {
+      touch-action: manipulation;
+      -webkit-user-select: auto;
+      user-select: auto;
+    }
+
+    #setupView,
+    #acceptView,
+    #chatView {
+      position: relative;
+      z-index: 2;
+      pointer-events: auto;
+    }
+
+    #setupView,
+    #acceptView {
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+    }
+
+    #setupView input,
+    #setupView textarea,
+    #setupView select,
+    #setupView button,
+    #acceptView input,
+    #acceptView textarea,
+    #acceptView select,
+    #acceptView button,
+    #chatView input,
+    #chatView textarea,
+    #chatView select,
+    #chatView button {
+      position: relative;
+      pointer-events: auto !important;
+      touch-action: manipulation;
+    }
+
+    #setupView::before,
+    #setupView::after,
+    #acceptView::before,
+    #acceptView::after {
+      pointer-events: none !important;
+    }
+
+    body:not(.chat-active) .call-overlay,
+    body:not(.chat-active) .voice-call-mini-bar,
+    body:not(.chat-active) .conversation-ended-panel {
+      pointer-events: none !important;
+    }
+
+    .call-overlay.hidden,
+    .voice-call-mini-bar.hidden,
+    .conversation-ended-panel.hidden,
+    .privacy-cover:not(.show) {
+      display: none !important;
+      pointer-events: none !important;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .ghost-btn {
+      min-height: 44px;
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: #e8edf5;
+      color: #0b2348;
+      font-weight: 900;
+    }
+
+    .wide {
+      width: 100%;
+    }
+
+    .muted,
+    .small-muted {
+      color: #6d7889;
+      line-height: 1.55;
+    }
+
+    .muted {
+      margin: 6px 0 14px;
+      font-size: 13px;
+    }
+
+    .small-muted {
+      margin: 8px 0 0;
+      font-size: 11px;
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      min-height: 26px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #fff0e5;
+      color: #bd4e08;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .brand-pill.small {
+      min-height: 22px;
+      padding: 3px 8px;
+      font-size: 9px;
+    }
+
+    .settings-card {
+      margin-top: 12px;
+      padding: 13px;
+      border: 1px solid #dfe4ec;
+      border-radius: 17px;
+      background: #f1f4f8;
+    }
+
+    @media (max-width: 430px) {
+      .settings-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
 </head>
 <body>
   <main class="app-shell">
-    <section class="hero-card" id="setupView">
-      <div class="brand-pill">私・話 v4.4</div>
-      <h1>一次性連結<br>加入私・話</h1>
-      <p class="muted">
-        不手動輸入頻道。訊息會先在手機端加密成 ANG 密封包；未進聊天室可等待，進房後與點開後各有獨立時效。
-      </p>
+    <section class="setup-card" id="setupView">
+      <header class="setup-head">
+        <div class="logo-mark" aria-hidden="true">私・話</div>
+        <div>
+          <h1>一次性連結<br>加入私・話</h1>
+          <p>只交換加密密封包，不保存名稱或訊息明文。</p>
+        </div>
+      </header>
 
       <label class="field-label" for="displayName">我的顯示名稱</label>
-      <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
+      <input id="displayName" class="text-input" type="text" maxlength="30" autocomplete="nickname" placeholder="例如：Lisa、小藍">
 
-      <div id="friendsPanel" class="friends-panel hidden">
+      <div id="friendsPanel" class="panel friends-panel hidden">
         <div class="panel-title">常用 / 好友</div>
         <div id="friendsList" class="friends-list"></div>
-        <p class="small-muted">常用只存在這台裝置的 localStorage，不會同步到其他手機，也不會產生聊天紀錄。</p>
+        <p class="panel-note">常用只存在這台裝置，不會同步到其他手機，也不會產生聊天紀錄。</p>
       </div>
 
-      <div class="settings-card compact-settings">
+      <div class="panel settings-panel settings-card compact-settings">
         <div class="panel-title">秒數設定</div>
         <div class="settings-list">
-          <label class="mini-field setting-row">
+          <label class="setting-row">
             <span>未進房保留</span>
-            <input id="messageTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="60" max="21600" step="300" value="21600">
-            <em>未進聊天室前，密文最長保留 6 小時</em>
+            <input id="messageTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="60" max="21600" step="300" value="21600">
+            <em>最長 6 小時</em>
           </label>
 
-          <label class="mini-field setting-row">
+          <label class="setting-row">
             <span>進房後未開</span>
-            <input id="sealedBubbleSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="300" max="300" step="1" value="300" readonly>
-            <em>進入聊天室後，該批訊息最多保留 5 分鐘</em>
+            <input id="sealedBubbleSeconds" class="seconds-input" type="number" inputmode="numeric" min="300" max="300" step="1" value="300" readonly>
+            <em>固定 5 分鐘</em>
           </label>
 
-          <label class="mini-field setting-row">
+          <label class="setting-row">
             <span>點開後消失</span>
-            <input id="displaySeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="15" max="60" step="5" value="20">
-            <em>雙方同步；點開單一水滴後才開始倒數</em>
+            <input id="displaySeconds" class="seconds-input" type="number" inputmode="numeric" min="15" max="60" step="5" value="20">
+            <em>雙方同步</em>
           </label>
 
-          <label class="mini-field setting-row">
+          <label class="setting-row">
             <span>邀請有效</span>
-            <input id="inviteTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="30" max="21600" step="10" value="1800">
-            <em>邀請連結幾秒後失效</em>
+            <input id="inviteTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="30" max="21600" step="10" value="1800">
+            <em>預設 30 分鐘</em>
           </label>
         </div>
-        <p class="small-muted">建立邀請時會同步閱後秒數；未讀進房後改成一顆一顆的水滴，點哪一顆就開哪一則。</p>
+        <p class="panel-note">建立邀請時會同步閱後秒數；未讀進房後會顯示成一顆一顆的水滴。</p>
       </div>
 
-      <div class="button-row">
+      <div class="main-actions button-row">
         <button id="createInviteBtn" class="primary-btn" type="button">建立專屬對話</button>
-        <button id="healthBtn" class="ghost-btn" type="button">測試後端</button>
+        <button id="healthBtn" class="soft-btn ghost-btn" type="button">測試後端</button>
       </div>
 
-      <div id="invitePanel" class="invite-panel hidden">
+      <div id="invitePanel" class="panel invite-panel hidden">
         <div class="panel-title">邀請連結</div>
-        <textarea id="inviteLink" readonly></textarea>
-        <div class="button-row">
+        <textarea id="inviteLink" readonly aria-label="邀請連結"></textarea>
+        <div class="main-actions compact-actions button-row">
           <button id="copyInviteBtn" class="primary-btn" type="button">複製邀請連結</button>
-          <button id="openChatBtn" class="ghost-btn" type="button">進入對話</button>
+          <button id="openChatBtn" class="soft-btn ghost-btn" type="button">進入對話</button>
         </div>
-        <p class="small-muted">邀請連結是一次性，請確認複製時包含 #angkey；對方點過後就會失效。過期請重新建立。</p>
+        <p class="panel-note">請確認複製時包含網址最後面的 #angkey；一次性邀請被接受後會立即失效。</p>
       </div>
     </section>
 
-    <section class="hero-card hidden" id="acceptView">
-      <div class="brand-pill">Invite</div>
-      <h1>正在加入對話</h1>
-      <p class="muted">請輸入你的顯示名稱。完整邀請連結會帶有 #angkey，本機會用它解開密封訊息。</p>
+    <section class="setup-card hidden" id="acceptView">
+      <header class="setup-head">
+        <div class="logo-mark" aria-hidden="true">邀請</div>
+        <div>
+          <h1>正在加入私・話</h1>
+          <p>完整邀請連結會帶有 #angkey，本機會用它解開密封訊息。</p>
+        </div>
+      </header>
 
       <label class="field-label" for="guestName">我的顯示名稱</label>
-      <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
+      <input id="guestName" class="text-input" type="text" maxlength="30" autocomplete="nickname" placeholder="例如：Lisa、小藍">
 
-      <button id="acceptInviteBtn" class="primary-btn wide" type="button">接受密封邀請並加入</button>
+      <button id="acceptInviteBtn" class="primary-btn full-btn wide" type="button">接受密封邀請並加入</button>
     </section>
 
     <section class="chat-card hidden" id="chatView">
@@ -98,7 +237,7 @@
         </div>
         <div class="header-actions">
           <button id="enableNotifyBtn" class="icon-btn" type="button" title="開啟通知">通知</button>
-          <button id="readUnreadBtn" class="icon-btn" type="button" title="讀取並刪除未讀密封包">讀取</button>
+          <button id="readUnreadBtn" class="icon-btn" type="button" title="讀取未讀密封包">讀取</button>
           <button id="clearNowBtn" class="icon-btn danger-soft" type="button" title="立即清空畫面">立即刪</button>
           <button id="saveFriendBtn" class="icon-btn" type="button" title="加入常用">加常用</button>
           <button id="resetBtn" class="icon-btn" type="button" title="重置">重置</button>
@@ -106,10 +245,12 @@
       </header>
 
       <div id="installBox" class="install-box hidden">
-        <strong>可以加入主畫面</strong>
-        <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟這個對話。</p>
-        <div class="button-row">
-          <button id="installBtn" class="primary-btn" type="button">安裝 / 加入主畫面</button>
+        <div>
+          <strong>可以加入主畫面</strong>
+          <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟這個對話。</p>
+        </div>
+        <div class="install-actions button-row">
+          <button id="installBtn" class="primary-btn" type="button">安裝</button>
           <button id="dismissInstallBtn" class="ghost-btn" type="button">稍後</button>
         </div>
       </div>
@@ -117,17 +258,51 @@
       <div id="chatBox" class="chat-box"></div>
 
       <form id="messageForm" class="composer">
+        <input id="photoInput" type="file" accept="image/*" hidden>
+        <button id="photoBtn" class="photo-btn" type="button" aria-label="傳送照片">照片</button>
         <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入私・話...">
-        <button type="submit">送出</button>
+        <button class="send-btn" type="submit">送出</button>
       </form>
     </section>
 
-    <div id="statusBar" class="status-bar">準備好了</div>
+    <div id="statusBar" class="status-bar" role="status" aria-live="polite">準備好了</div>
   </main>
 
-  <script src="/app.js"></script>
-  <script src="/invite-addon.js"></script>
-  <script src="/room-addon.js"></script>
-  <script src="/call-addon.js"></script>
+  <div class="privacy-cover" aria-hidden="true">私・話</div>
+
+  <script>
+    (() => {
+      function releaseHiddenOverlays() {
+        const setup = document.getElementById('setupView');
+        const accept = document.getElementById('acceptView');
+        const chat = document.getElementById('chatView');
+
+        [setup, accept, chat].forEach((view) => {
+          if (!view) return;
+          view.style.pointerEvents = 'auto';
+        });
+
+        document.querySelectorAll('.call-overlay.hidden, .voice-call-mini-bar.hidden, .conversation-ended-panel.hidden').forEach((element) => {
+          element.style.display = 'none';
+          element.style.pointerEvents = 'none';
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', releaseHiddenOverlays, { once: true });
+      } else {
+        releaseHiddenOverlays();
+      }
+
+      window.addEventListener('load', releaseHiddenOverlays, { once: true });
+      setTimeout(releaseHiddenOverlays, 800);
+      setTimeout(releaseHiddenOverlays, 2200);
+    })();
+  </script>
+
+  <script src="./app.js"></script>
+  <script src="./invite-addon.js"></script>
+  <script src="./room-addon.js"></script>
+  <script src="./call-addon.js"></script>
 </body>
 </html>
