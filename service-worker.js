@@ -1,4 +1,4 @@
-const CACHE_NAME = 'private-chat-v44-touch-safe-20260707-3';
+const CACHE_NAME = 'private-chat-v44-touch-flow-20260707-4';
 const APP_BASE = new URL('./', self.location.href).pathname;
 const STATIC_ASSETS = [
   './',
