@@ -1,22 +1,22 @@
 {
   "name": "私•話",
   "short_name": "私•話",
-  "description": "端到端加密、讀取即焚的私密對話 PWA。",
+  "description": "端到端加密、讀取即刪的私密文字與照片對話。",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#061633",
-  "theme_color": "#0b2a5b",
+  "background_color": "#07162f",
+  "theme_color": "#07162f",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/assets/icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/assets/icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

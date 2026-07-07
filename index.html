@@ -2,8 +2,8 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0b2a5b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#07162f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="私•話">
@@ -14,122 +14,116 @@
 </head>
 <body>
   <main class="app-shell">
-    <section class="hero-card" id="setupView">
-      <div class="brand-pill">Zero-Knowledge v4.1</div>
-      <h1>永久專屬頻道<br>無痕密封對話</h1>
-      <p class="muted">
-        對話建立完全在手機端運算。後端只充當不具名的 ANG 密封包郵筒，不建立邀請紀錄。
-      </p>
-
-      <div class="identity-card">
-        <div class="panel-title">我的固定身份</div>
-        <div class="identity-row">
-          <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
-          <button id="saveIdentityBtn" class="ghost-btn" type="button">儲存</button>
+    <section class="setup-card" id="setupView">
+      <div class="setup-head">
+        <div class="logo-mark">私•話</div>
+        <div>
+          <h1>只讓對方看見</h1>
+          <p>文字與照片都會先加密，再送進短暫郵筒。</p>
         </div>
-        <p id="identityStatus" class="small-muted">第一次使用先存身份；之後建立邀請與聊天都會自動使用這個名字。</p>
       </div>
 
-      <div id="friendsPanel" class="friends-panel hidden">
-        <div class="panel-title">好友 / 常用頻道</div>
+      <label class="field-label" for="displayName">我的名稱</label>
+      <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：米米">
+
+      <div id="friendsPanel" class="panel hidden">
+        <div class="panel-title">常用私•話</div>
         <div id="friendsList" class="friends-list"></div>
-        <p class="small-muted">好友與密鑰只存在這台裝置。清除網站資料後就會消失。</p>
       </div>
 
-      <div class="settings-card compact-settings">
-        <div class="panel-title">秒數設定</div>
+      <div class="panel settings-panel">
+        <div class="panel-title">訊息時間</div>
         <div class="settings-list">
-          <label class="mini-field setting-row">
-            <span>離線保留</span>
-            <input id="messageTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="5" max="21600" step="5" value="3600">
-            <em>對方還沒打開前，密封包最多保留幾秒</em>
+          <label class="setting-row">
+            <span>未讀保留</span>
+            <input id="messageTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="5" max="21600" step="5" value="20">
+            <em>秒</em>
           </label>
-
-          <label class="mini-field setting-row">
-            <span>未開封泡泡</span>
-            <input id="sealedBubbleSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="3" max="300" step="1" value="60">
-            <em>進聊天室後沒按圓點查看，泡泡幾秒消失</em>
+          <label class="setting-row">
+            <span>未開封</span>
+            <input id="sealedBubbleSeconds" class="seconds-input" type="number" inputmode="numeric" min="10" max="600" step="1" value="120">
+            <em>秒</em>
           </label>
-
-          <label class="mini-field setting-row">
-            <span>按住查看後</span>
-            <input id="displaySeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="1" max="60" step="1" value="5">
-            <em>從第一次按住圓點看內容開始倒數</em>
+          <label class="setting-row">
+            <span>查看後</span>
+            <input id="displaySeconds" class="seconds-input" type="number" inputmode="numeric" min="3" max="60" step="1" value="5">
+            <em>秒</em>
           </label>
         </div>
-        <p class="small-muted">訊息預設模糊。按住泡泡下方圓點才顯示，放開立刻模糊。</p>
+        <p class="panel-note">按住橘點才會顯示內容；放開立即遮蔽。</p>
       </div>
 
-      <label class="field-label" for="creatorFriendName">這位好友名稱</label>
-      <input id="creatorFriendName" class="text-input" type="text" maxlength="40" placeholder="例如：Lisa、小藍">
-
-      <div class="button-row">
+      <div class="main-actions">
         <button id="createInviteBtn" class="primary-btn" type="button">建立加好友連結</button>
-        <button id="healthBtn" class="ghost-btn" type="button">測試連線</button>
+        <button id="healthBtn" class="soft-btn" type="button">測試連線</button>
       </div>
 
-      <div id="invitePanel" class="invite-panel hidden">
-        <div class="panel-title">邀請連結</div>
+      <div id="invitePanel" class="panel invite-panel hidden">
+        <div class="panel-title">加好友連結</div>
         <textarea id="inviteLink" readonly></textarea>
-        <div class="button-row">
-          <button id="copyInviteBtn" class="primary-btn" type="button">複製連結給對方</button>
-          <button id="openChatBtn" class="ghost-btn" type="button">進入對話</button>
+        <div class="main-actions compact-actions">
+          <button id="copyInviteBtn" class="primary-btn" type="button">複製連結</button>
+          <button id="openChatBtn" class="soft-btn" type="button">進入私•話</button>
         </div>
-        <p class="small-muted">一定要包含 #angkey。這段是解鎖密鑰，只在手機端使用。</p>
       </div>
     </section>
 
-    <section class="hero-card hidden" id="acceptView">
-      <div class="brand-pill">Secure Join</div>
-      <h1>偵測到專屬密鑰</h1>
-      <p class="muted">這條連結包含 #angkey。本機會用它推導雙向頻道，後端不會收到密鑰。</p>
-
-      <div class="identity-card">
-        <div class="panel-title">我的固定身份</div>
-        <div class="identity-row">
-          <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
-          <button id="saveGuestIdentityBtn" class="ghost-btn" type="button">儲存</button>
+    <section class="setup-card hidden" id="acceptView">
+      <div class="setup-head">
+        <div class="logo-mark">私•話</div>
+        <div>
+          <h1>加入這段私•話</h1>
+          <p>輸入名稱後即可建立固定的雙向密封頻道。</p>
         </div>
-        <p class="small-muted">接受後會用這個身份聊天，也會把這個頻道加入好友。</p>
       </div>
 
-      <label class="field-label" for="guestFriendName">這位好友名稱</label>
-      <input id="guestFriendName" class="text-input" type="text" maxlength="40" placeholder="例如：Lisa、小藍">
-
-      <button id="acceptInviteBtn" class="primary-btn wide" type="button">解鎖並加入好友</button>
+      <label class="field-label" for="guestName">我的名稱</label>
+      <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：米米">
+      <button id="acceptInviteBtn" class="primary-btn full-btn" type="button">解鎖並加入</button>
     </section>
 
     <section class="chat-card hidden" id="chatView">
       <header class="chat-header">
-        <div class="chat-title-block">
-          <div class="brand-pill small">端到端加密連線</div>
-          <h2 id="chatTitle">密封對話</h2>
-          <p id="chatSub" class="small-muted">正在無痕模式下運作中...</p>
-          <div id="unreadBadge" class="unread-pill">新訊息 0</div>
+        <div class="chat-title-row">
+          <div class="chat-title-wrap">
+            <span class="chat-logo">私•話</span>
+            <div class="chat-name-wrap">
+              <h2 id="chatTitle">私•話</h2>
+              <p id="chatSub">端到端加密・讀取即刪</p>
+            </div>
+          </div>
+          <div class="title-side">
+            <div id="unreadBadge" class="unread-pill">0 未讀</div>
+            <button id="resetBtn" class="leave-btn" type="button">離開</button>
+          </div>
         </div>
-        <div class="header-actions">
-          <button id="enableNotifyBtn" class="icon-btn" type="button">通知</button>
-          <button id="readUnreadBtn" class="icon-btn" type="button">收訊</button>
-          <button id="clearNowBtn" class="icon-btn danger-soft" type="button">淨空</button>
-          <button id="saveFriendBtn" class="icon-btn" type="button">加常用</button>
-          <button id="resetBtn" class="icon-btn" type="button">離開</button>
+
+        <div class="chat-tools">
+          <button id="enableNotifyBtn" type="button">通知</button>
+          <button id="readUnreadBtn" type="button">收訊</button>
+          <button id="clearNowBtn" type="button">淨空</button>
+          <button id="saveFriendBtn" type="button">常用</button>
         </div>
       </header>
 
       <div id="installBox" class="install-box hidden">
-        <strong>安裝為獨立 App</strong>
-        <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟。</p>
-        <div class="button-row">
-          <button id="installBtn" class="primary-btn" type="button">安裝 / 加入主畫面</button>
-          <button id="dismissInstallBtn" class="ghost-btn" type="button">稍後</button>
+        <div>
+          <strong>加入主畫面</strong>
+          <p id="installText">像 App 一樣直接開啟。</p>
+        </div>
+        <div class="install-actions">
+          <button id="installBtn" type="button">加入</button>
+          <button id="dismissInstallBtn" type="button">略過</button>
         </div>
       </div>
 
       <div id="chatBox" class="chat-box"></div>
 
       <form id="messageForm" class="composer">
-        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入訊息...">
-        <button type="submit">送出</button>
+        <input id="photoInput" type="file" accept="image/*" hidden>
+        <button id="photoBtn" class="photo-btn" type="button" aria-label="傳送照片">照片</button>
+        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入訊息…">
+        <button class="send-btn" type="submit">送出</button>
       </form>
     </section>
 

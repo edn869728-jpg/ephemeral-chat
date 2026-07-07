@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sihua-v41-frontfix-20260630-2';
+const CACHE_NAME = 'sihua-v42-photo-ui-20260707-1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -20,19 +20,32 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.map((key) => key !== CACHE_NAME ? caches.delete(key) : Promise.resolve())))
+      .then((keys) => Promise.all(
+        keys.map((key) => key !== CACHE_NAME ? caches.delete(key) : Promise.resolve())
+      ))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
+
   if (event.request.method !== 'GET') return;
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

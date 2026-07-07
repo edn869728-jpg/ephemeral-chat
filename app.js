@@ -1,25 +1,27 @@
-const SESSION_KEY = 'sihua_v41_session';
+const SESSION_KEY = 'sihua_v42_session';
 const IDENTITY_KEY = 'sihua_v41_identity';
 const INSTALL_DISMISSED_KEY = 'sihua_v41_install_dismissed';
-const LOCAL_SETTINGS_KEY = 'sihua_v41_settings';
+const LOCAL_SETTINGS_KEY = 'sihua_v42_settings';
 const FRIENDS_KEY = 'sihua_v41_friends';
 const NOTIFY_PREF_KEY = 'sihua_v41_notify_enabled';
-const LAST_UNREAD_KEY = 'sihua_v41_last_unread';
+const LAST_UNREAD_KEY = 'sihua_v42_last_unread';
 
 const DEFAULT_SETTINGS = {
   displaySeconds: 5,
-  sealedBubbleSeconds: 60,
+  sealedBubbleSeconds: 120,
   messageTtlSeconds: 20
 };
 
 const LIMITS = {
-  displaySeconds: { min: 1, max: 60 },
-  sealedBubbleSeconds: { min: 3, max: 300 },
+  displaySeconds: { min: 3, max: 60 },
+  sealedBubbleSeconds: { min: 10, max: 600 },
   messageTtlSeconds: { min: 5, max: 21600 }
 };
 
 const POLL_INTERVAL_MS = 5000;
 const ACTIVE_READ_DELAY_MS = 350;
+const MAX_IMAGE_DATA_CHARS = 32000;
+const IMAGE_MAX_EDGE = 1280;
 
 let session = null;
 let pollTimer = null;
@@ -37,6 +39,8 @@ const invitePanel = $('invitePanel');
 const inviteLink = $('inviteLink');
 const chatBox = $('chatBox');
 const messageInput = $('messageInput');
+const photoInput = $('photoInput');
+const photoBtn = $('photoBtn');
 const installBox = $('installBox');
 const installBtn = $('installBtn');
 const installText = $('installText');
@@ -117,6 +121,15 @@ function bindEvents() {
       await sendMessage();
     });
   }
+
+  if (photoBtn && photoInput) {
+    photoBtn.addEventListener('click', () => photoInput.click());
+    photoInput.addEventListener('change', async () => {
+      const file = photoInput.files && photoInput.files[0];
+      photoInput.value = '';
+      if (file) await sendPhotoFile(file);
+    });
+  }
 }
 
 function on(id, eventName, handler) {
@@ -140,7 +153,7 @@ function showAcceptView() {
 
 async function createInvite() {
   const button = $('createInviteBtn');
-  const label = getIdentityFromInputs('我');
+  const label = getIdentityFromInputs('displayName', '我');
   const settings = getSettingsFromForm();
   saveIdentity(label);
   saveLocalSettings(settings);
@@ -179,7 +192,7 @@ async function createInvite() {
 async function acceptInvite() {
   const button = $('acceptInviteBtn');
   const inviteKey = getInviteKeyFromHash();
-  const label = getIdentityFromInputs('我');
+  const label = getIdentityFromInputs('guestName', '我');
 
   if (!inviteKey) {
     setStatus('找不到 #angkey，請對方重新複製完整連結。');
@@ -244,7 +257,7 @@ function enterChat() {
   const title = $('chatTitle');
   const sub = $('chatSub');
   if (title) title.textContent = friendName || '私•話';
-  if (sub) sub.textContent = `${session.label || '我'}｜端到端加密｜GAS 只存 ANG1 密封包`;
+  if (sub) sub.textContent = '端到端加密・讀取即刪';
 
   updateNotifyButton();
   updateUnreadBadge(loadLastUnread());
@@ -302,7 +315,7 @@ async function readAndDeleteNow(manual) {
     for (const item of packets) {
       try {
         const message = await decryptAngPacket(item.packet, session.sealedKey);
-        addMessage(message.system ? 'system' : 'other', message.sender || '對方', message.text || '');
+        addMessage(message.system ? 'system' : 'other', message.sender || '對方', message);
       } catch (err) {
         addMessage('system', '系統', '收到一則無法解密的密封包。');
       }
@@ -329,38 +342,76 @@ async function sendMessage() {
   const text = messageInput ? messageInput.value.trim() : '';
   if (!text) return;
 
-  const settings = getActiveSettings();
-  const sender = session.label || '我';
   if (messageInput) messageInput.value = '';
-  addMessage('mine', '我', text);
+  await sendPayload({
+    kind: 'text',
+    text,
+    sender: session.label || '我',
+    system: false,
+    timestamp: Date.now()
+  });
+}
+
+async function sendPhotoFile(file) {
+  if (!session || !session.peerChannel || !session.sealedKey) {
+    setStatus('尚未建立私•話。');
+    return;
+  }
+
+  if (!file || !String(file.type || '').startsWith('image/')) {
+    setStatus('目前只支援照片，不支援影片。');
+    return;
+  }
+
+  setBusy(photoBtn, true, '處理中');
+  setStatus('照片壓縮加密中…');
 
   try {
-    const packet = await makeAngPacket({
-      sender,
-      text,
+    const imageData = await compressImageFile(file);
+    await sendPayload({
+      kind: 'image',
+      imageData,
+      sender: session.label || '我',
       system: false,
       timestamp: Date.now()
-    }, session.sealedKey);
+    });
+  } catch (err) {
+    setStatus(err.message || '照片傳送失敗');
+  } finally {
+    setBusy(photoBtn, false, '照片');
+  }
+}
 
+async function sendPayload(message) {
+  const settings = getActiveSettings();
+  addMessage('mine', '我', message);
+
+  try {
+    const packet = await makeAngPacket(message, session.sealedKey);
     await api('sendSealedMessage', {
       peerChannel: session.peerChannel,
       packet,
       messageTtlSeconds: settings.messageTtlSeconds
     });
-    setStatus('已送出 ANG1 密封包。');
+    setStatus(message.kind === 'image' ? '照片已加密送出。' : '訊息已加密送出。');
   } catch (err) {
     setStatus(err.message || '送出失敗');
-    addMessage('system', '系統', '剛剛那則可能沒有送出。');
+    addMessage('system', '系統', { kind: 'text', text: '剛剛那則可能沒有送出。' });
   }
 }
 
-function addMessage(type, sender, text) {
+function addMessage(type, sender, content) {
   if (!chatBox) return;
+
   const settings = getActiveSettings();
   const isPeekMessage = type === 'other';
+  const message = typeof content === 'string'
+    ? { kind: 'text', text: content }
+    : (content || { kind: 'text', text: '' });
+  const isImage = message.kind === 'image' && isSafeImageData(message.imageData);
 
   const div = document.createElement('div');
-  div.className = `msg ${type === 'mine' ? 'mine' : ''} ${type === 'system' ? 'system' : ''} ${isPeekMessage ? 'peek' : ''}`.trim();
+  div.className = `msg ${type === 'mine' ? 'mine' : ''} ${type === 'system' ? 'system' : ''} ${isPeekMessage ? 'peek' : ''} ${isImage ? 'image-msg' : ''}`.trim();
 
   let senderEl = null;
   if (type !== 'system') {
@@ -370,51 +421,51 @@ function addMessage(type, sender, text) {
     div.appendChild(senderEl);
   }
 
-  const textEl = document.createElement('span');
-  textEl.className = 'msg-text';
-  textEl.textContent = text;
-  if (isPeekMessage) {
-    textEl.style.filter = 'blur(8px)';
-    textEl.style.userSelect = 'none';
+  let contentEl;
+  if (isImage) {
+    contentEl = document.createElement('img');
+    contentEl.className = 'msg-image';
+    contentEl.src = message.imageData;
+    contentEl.alt = '私•話照片';
+    contentEl.draggable = false;
+  } else {
+    contentEl = document.createElement('span');
+    contentEl.className = 'msg-text';
+    contentEl.textContent = String(message.text || '');
   }
-  div.appendChild(textEl);
+
+  if (isPeekMessage) {
+    contentEl.style.filter = isImage ? 'blur(16px)' : 'blur(8px)';
+    contentEl.style.userSelect = 'none';
+  }
+  div.appendChild(contentEl);
 
   let hintEl = null;
   let dotBtn = null;
   if (isPeekMessage) {
     hintEl = document.createElement('span');
     hintEl.className = 'peek-hint';
-    hintEl.textContent = `按住下方圓點查看｜${settings.sealedBubbleSeconds} 秒後消失`;
+    hintEl.textContent = isImage ? '密封照片｜按住下方橘點查看' : '密封訊息｜按住下方橘點查看';
     div.appendChild(hintEl);
 
     dotBtn = document.createElement('button');
     dotBtn.type = 'button';
     dotBtn.className = 'peek-dot';
-    dotBtn.textContent = '•';
-    dotBtn.setAttribute('aria-label', '按住查看訊息');
-    dotBtn.style.display = 'block';
-    dotBtn.style.margin = '8px auto 0';
-    dotBtn.style.width = '34px';
-    dotBtn.style.height = '34px';
-    dotBtn.style.borderRadius = '999px';
-    dotBtn.style.border = '0';
-    dotBtn.style.fontSize = '28px';
-    dotBtn.style.lineHeight = '18px';
-    dotBtn.style.color = '#fff';
-    dotBtn.style.background = '#d95f00';
+    dotBtn.setAttribute('aria-label', isImage ? '按住查看照片' : '按住查看訊息');
     div.appendChild(dotBtn);
   }
 
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
   deleteBtn.className = 'msg-delete';
-  deleteBtn.textContent = '立即刪';
+  deleteBtn.textContent = '刪';
+  deleteBtn.setAttribute('aria-label', '立即刪除');
   div.appendChild(deleteBtn);
 
   let timer = null;
   let opened = false;
-  const openedLifetimeMs = settings.displaySeconds * 1000;
-  const unopenedLifetimeMs = settings.sealedBubbleSeconds * 1000;
+  const openedLifetimeMs = Math.max(3, Number(settings.displaySeconds || 5)) * 1000;
+  const unopenedLifetimeMs = Math.max(10, Number(settings.sealedBubbleSeconds || 120)) * 1000;
 
   function removeMessage() {
     if (timer) clearTimeout(timer);
@@ -427,25 +478,32 @@ function addMessage(type, sender, text) {
     const reveal = (event) => {
       if (event) event.preventDefault();
       if (!div.isConnected) return;
+
       div.classList.add('revealed');
-      textEl.style.filter = 'none';
-      textEl.style.userSelect = 'text';
+      contentEl.style.filter = 'none';
+      contentEl.style.userSelect = isImage ? 'none' : 'text';
       if (senderEl) senderEl.textContent = sender || '對方';
-      if (hintEl) hintEl.textContent = `查看中｜${settings.displaySeconds} 秒後刪除`;
+
       if (!opened) {
         opened = true;
         if (timer) clearTimeout(timer);
         timer = setTimeout(removeMessage, openedLifetimeMs);
       }
+
+      if (hintEl) hintEl.textContent = `查看中｜${Math.round(openedLifetimeMs / 1000)} 秒後刪除`;
     };
 
     const hide = () => {
       if (!div.isConnected) return;
       div.classList.remove('revealed');
-      textEl.style.filter = 'blur(8px)';
-      textEl.style.userSelect = 'none';
-      if (senderEl) senderEl.textContent = '密封訊息';
-      if (hintEl) hintEl.textContent = opened ? '已開封倒數中｜按住圓點可再次查看' : `按住下方圓點查看｜${settings.sealedBubbleSeconds} 秒後消失`;
+      contentEl.style.filter = isImage ? 'blur(16px)' : 'blur(8px)';
+      contentEl.style.userSelect = 'none';
+      if (senderEl) senderEl.textContent = isImage ? '密封照片' : '密封訊息';
+      if (hintEl) {
+        hintEl.textContent = opened
+          ? '內容已遮蔽｜倒數中，可再按住查看'
+          : `${isImage ? '密封照片' : '密封訊息'}｜按住下方橘點查看`;
+      }
     };
 
     if (dotBtn) {
@@ -454,7 +512,7 @@ function addMessage(type, sender, text) {
       dotBtn.addEventListener('pointercancel', hide);
       dotBtn.addEventListener('pointerleave', hide);
     }
-    window.addEventListener('blur', hide);
+    window.addEventListener('blur', hide, { once: true });
   } else {
     div.style.setProperty('--vanish-ms', `${openedLifetimeMs}ms`);
     timer = setTimeout(removeMessage, openedLifetimeMs);
@@ -467,6 +525,69 @@ function addMessage(type, sender, text) {
 
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function compressImageFile(file) {
+  const sourceUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await loadImage(sourceUrl);
+    let width = image.naturalWidth || image.width;
+    let height = image.naturalHeight || image.height;
+
+    if (!width || !height) throw new Error('照片讀取失敗');
+
+    const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(width, height));
+    width = Math.max(1, Math.round(width * scale));
+    height = Math.max(1, Math.round(height * scale));
+
+    let quality = 0.78;
+    let dataUrl = '';
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('無法處理照片');
+
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+      if (dataUrl.length <= MAX_IMAGE_DATA_CHARS) return dataUrl;
+
+      if (quality > 0.42) {
+        quality -= 0.08;
+      } else {
+        width = Math.max(320, Math.round(width * 0.82));
+        height = Math.max(320, Math.round(height * 0.82));
+      }
+    }
+
+    if (dataUrl.length > MAX_IMAGE_DATA_CHARS) {
+      throw new Error('這張照片仍太大，請改用截圖或裁切後再傳。');
+    }
+
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('照片讀取失敗'));
+    image.src = src;
+  });
+}
+
+function isSafeImageData(value) {
+  return /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(String(value || ''))
+    && String(value || '').length <= MAX_IMAGE_DATA_CHARS + 100;
 }
 
 function clearVisibleMessages() {
@@ -876,8 +997,14 @@ function loadIdentityIntoInputs() {
   if ($('guestName') && !$('guestName').value) $('guestName').value = name;
 }
 
-function getIdentityFromInputs(fallback) {
-  const value = (($('displayName') && $('displayName').value) || ($('guestName') && $('guestName').value) || localStorage.getItem(IDENTITY_KEY) || fallback || '我').trim();
+function getIdentityFromInputs(inputId, fallback) {
+  const input = $(inputId);
+  const value = String(
+    (input && input.value) ||
+    localStorage.getItem(IDENTITY_KEY) ||
+    fallback ||
+    '我'
+  ).trim();
   return value.slice(0, 30) || '我';
 }
 
@@ -1026,17 +1153,28 @@ async function makeAngPacket(message, base64UrlKey) {
   const iv = new Uint8Array(12);
   crypto.getRandomValues(iv);
 
+  const kind = message.kind === 'image' ? 'image' : 'text';
+  const imageData = kind === 'image' && isSafeImageData(message.imageData)
+    ? String(message.imageData)
+    : '';
+
+  if (kind === 'image' && !imageData) {
+    throw new Error('照片格式不正確');
+  }
+
   const plain = new TextEncoder().encode(JSON.stringify({
-    v: 1,
+    v: 2,
+    kind,
     sender: String(message.sender || '對方').slice(0, 40),
-    text: String(message.text || '').slice(0, 1000),
+    text: kind === 'text' ? String(message.text || '').slice(0, 1000) : '',
+    imageData,
     system: Boolean(message.system),
     timestamp: Number(message.timestamp || Date.now())
   }));
 
   const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain));
   const wrapper = {
-    v: 1,
+    v: 2,
     type: 'ANG_SEALED_MESSAGE',
     alg: 'AES-GCM-256',
     iv: bytesToBase64Url(iv),
@@ -1051,7 +1189,7 @@ async function decryptAngPacket(packet, base64UrlKey) {
   if (!text.startsWith('ANG1.')) throw new Error('不是 ANG1 密封包');
 
   const wrapper = JSON.parse(base64UrlToString(text.slice(5)));
-  if (!wrapper || wrapper.v !== 1 || !wrapper.iv || !wrapper.data) throw new Error('密封包格式錯誤');
+  if (!wrapper || !wrapper.iv || !wrapper.data) throw new Error('密封包格式錯誤');
 
   const key = await importAesKey(base64UrlKey);
   const plain = await crypto.subtle.decrypt(
@@ -1061,9 +1199,18 @@ async function decryptAngPacket(packet, base64UrlKey) {
   );
 
   const message = JSON.parse(new TextDecoder().decode(plain));
+  const kind = message.kind === 'image' ? 'image' : 'text';
+  const imageData = kind === 'image' && isSafeImageData(message.imageData)
+    ? String(message.imageData)
+    : '';
+
+  if (kind === 'image' && !imageData) throw new Error('照片密封包格式錯誤');
+
   return {
+    kind,
     sender: String(message.sender || '對方').slice(0, 40),
-    text: String(message.text || '').slice(0, 1000),
+    text: kind === 'text' ? String(message.text || '').slice(0, 1000) : '',
+    imageData,
     system: Boolean(message.system),
     timestamp: Number(message.timestamp || Date.now())
   };
