@@ -8,75 +8,78 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="私・話">
   <title>私・話</title>
-
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./layout-addon.css">
 
-  <style id="interaction-fix">
-    html,
-    body {
-      touch-action: manipulation;
-      -webkit-user-select: auto;
-      user-select: auto;
+  <style id="setup-touch-fix">
+    html {
+      position: static !important;
+      inset: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
     }
 
-    /* 首頁／接受邀請頁永遠放在最上層，任何通話或聊天室附加元件都不能吃掉點擊。 */
+    body:not(.chat-active) {
+      position: relative !important;
+      inset: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      min-height: 100dvh !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      overscroll-behavior-y: auto !important;
+      touch-action: pan-y manipulation !important;
+    }
+
     body:not(.chat-active) .app-shell {
-      z-index: 2147483000 !important;
+      position: relative !important;
+      inset: auto !important;
+      width: min(100%, 580px) !important;
+      height: auto !important;
+      min-height: 100dvh !important;
+      margin: 0 auto !important;
+      overflow: visible !important;
+      z-index: auto !important;
       pointer-events: auto !important;
     }
 
-    body:not(.chat-active) > .call-overlay,
-    body:not(.chat-active) > .voice-call-mini-bar,
-    body:not(.chat-active) > .room-toast,
-    body:not(.chat-active) > .privacy-cover {
-      display: none !important;
-      pointer-events: none !important;
+    body:not(.chat-active) #setupView,
+    body:not(.chat-active) #acceptView {
+      position: relative !important;
+      flex: none !important;
+      min-height: auto !important;
+      overflow: visible !important;
+      pointer-events: auto !important;
+      touch-action: pan-y manipulation !important;
     }
 
-    #setupView,
-    #acceptView,
-    #chatView {
-      position: relative;
+    body:not(.chat-active) #setupView *,
+    body:not(.chat-active) #acceptView * {
       pointer-events: auto !important;
     }
 
-    #setupView,
-    #acceptView {
-      overflow-x: hidden;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
+    body:not(.chat-active) input,
+    body:not(.chat-active) textarea,
+    body:not(.chat-active) select,
+    body:not(.chat-active) button {
+      position: relative !important;
+      z-index: 2 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+      -webkit-user-select: text;
+      user-select: text;
     }
 
-    #setupView *,
-    #acceptView *,
-    #chatView input,
-    #chatView textarea,
-    #chatView select,
-    #chatView button {
-      pointer-events: auto;
+    body:not(.chat-active) button {
+      -webkit-user-select: none;
+      user-select: none;
     }
 
-    #setupView input,
-    #setupView textarea,
-    #setupView select,
-    #setupView button,
-    #acceptView input,
-    #acceptView textarea,
-    #acceptView select,
-    #acceptView button {
-      position: relative;
-      z-index: 3;
-      touch-action: manipulation;
-    }
-
-    #setupView::before,
-    #setupView::after,
-    #acceptView::before,
-    #acceptView::after {
+    body:not(.chat-active) > :not(.app-shell):not(script) {
       pointer-events: none !important;
     }
 
@@ -89,33 +92,37 @@
 
     .ghost-btn {
       min-height: 44px;
-      border-radius: 14px;
       padding: 10px 12px;
+      border: 0;
+      border-radius: 14px;
       background: #e8edf5;
       color: #0b2348;
       font-weight: 900;
     }
 
     .wide { width: 100%; }
+    .settings-card { margin-top: 12px; }
 
-    .settings-card {
-      margin-top: 12px;
-      padding: 13px;
-      border: 1px solid #dfe4ec;
-      border-radius: 17px;
-      background: #f1f4f8;
+    .version-proof {
+      display: inline-flex;
+      margin: 0 0 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eef3fb;
+      color: #244b78;
+      font-size: 10px;
+      font-weight: 900;
     }
 
     @media (max-width: 430px) {
-      .settings-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
+      .settings-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
 <body>
   <main class="app-shell">
     <section class="setup-card" id="setupView">
+      <div class="version-proof">TOUCH FIX 4.4.4</div>
       <header class="setup-head">
         <div class="logo-mark" aria-hidden="true">私・話</div>
         <div>
@@ -141,19 +148,16 @@
             <input id="messageTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="60" max="21600" step="300" value="21600">
             <em>最長 6 小時</em>
           </label>
-
           <label class="setting-row">
             <span>進房後未開</span>
             <input id="sealedBubbleSeconds" class="seconds-input" type="number" inputmode="numeric" min="300" max="300" step="1" value="300" readonly>
             <em>固定 5 分鐘</em>
           </label>
-
           <label class="setting-row">
             <span>點開後消失</span>
             <input id="displaySeconds" class="seconds-input" type="number" inputmode="numeric" min="15" max="60" step="5" value="20">
             <em>雙方同步</em>
           </label>
-
           <label class="setting-row">
             <span>邀請有效</span>
             <input id="inviteTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="30" max="21600" step="10" value="1800">
@@ -180,6 +184,7 @@
     </section>
 
     <section class="setup-card hidden" id="acceptView">
+      <div class="version-proof">TOUCH FIX 4.4.4</div>
       <header class="setup-head">
         <div class="logo-mark" aria-hidden="true">邀請</div>
         <div>
@@ -187,7 +192,6 @@
           <p>完整邀請連結會帶有 #angkey，本機會用它解開密封訊息。</p>
         </div>
       </header>
-
       <label class="field-label" for="guestName">我的顯示名稱</label>
       <input id="guestName" class="text-input" type="text" maxlength="30" autocomplete="nickname" placeholder="例如：Lisa、小藍">
       <button id="acceptInviteBtn" class="primary-btn full-btn wide" type="button">接受密封邀請並加入</button>
@@ -222,7 +226,6 @@
       </div>
 
       <div id="chatBox" class="chat-box"></div>
-
       <form id="messageForm" class="composer">
         <input id="photoInput" type="file" accept="image/*" hidden>
         <button id="photoBtn" class="photo-btn" type="button">照片</button>
@@ -236,64 +239,40 @@
 
   <script>
     (() => {
-      const loaded = new Set();
+      let chatAssetsLoaded = false;
 
-      function loadScript(src) {
-        if (loaded.has(src) || document.querySelector(`script[data-lazy-src="${src}"]`)) {
-          return Promise.resolve();
-        }
-        loaded.add(src);
-        return new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = src;
-          script.dataset.lazySrc = src;
-          script.onload = resolve;
-          script.onerror = reject;
-          document.body.appendChild(script);
-        });
-      }
-
-      async function loadChatAddonsWhenNeeded() {
+      function loadChatAssets() {
         const chat = document.getElementById('chatView');
-        if (!chat || chat.classList.contains('hidden')) return;
-        document.body.classList.add('chat-active');
-        try {
-          await loadScript('./room-addon.js');
-          await loadScript('./call-addon.js');
-        } catch (error) {
-          const status = document.getElementById('statusBar');
-          if (status) status.textContent = '聊天室附加功能載入失敗，請重新整理。';
-        }
-      }
+        const active = Boolean(chat && !chat.classList.contains('hidden'));
+        document.body.classList.toggle('chat-active', active);
+        if (!active || chatAssetsLoaded) return;
+        chatAssetsLoaded = true;
 
-      function keepSetupInteractive() {
-        const chat = document.getElementById('chatView');
-        const isChat = Boolean(chat && !chat.classList.contains('hidden'));
-        document.body.classList.toggle('chat-active', isChat);
-        if (!isChat) {
-          document.body.classList.remove('privacy-hidden', 'keyboard-open');
-          document.querySelectorAll('.call-overlay, .voice-call-mini-bar, .room-toast').forEach((element) => element.remove());
-        }
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = './layout-addon.css';
+        document.head.appendChild(css);
+
+        const room = document.createElement('script');
+        room.src = './room-addon.js';
+        room.onload = () => {
+          const call = document.createElement('script');
+          call.src = './call-addon.js';
+          document.body.appendChild(call);
+        };
+        document.body.appendChild(room);
       }
 
       document.addEventListener('DOMContentLoaded', () => {
         const chat = document.getElementById('chatView');
         if (chat) {
-          const observer = new MutationObserver(() => {
-            keepSetupInteractive();
-            loadChatAddonsWhenNeeded();
+          new MutationObserver(loadChatAssets).observe(chat, {
+            attributes: true,
+            attributeFilter: ['class']
           });
-          observer.observe(chat, { attributes: true, attributeFilter: ['class'] });
         }
-        keepSetupInteractive();
-        loadChatAddonsWhenNeeded();
+        loadChatAssets();
       }, { once: true });
-
-      window.addEventListener('pageshow', keepSetupInteractive);
-      window.addEventListener('focus', keepSetupInteractive);
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) keepSetupInteractive();
-      });
     })();
   </script>
 
