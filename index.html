@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./layout-addon.css">
 
-  <style id="touch-unlock-fix">
+  <style id="interaction-fix">
     html,
     body {
       touch-action: manipulation;
@@ -22,12 +22,25 @@
       user-select: auto;
     }
 
+    /* 首頁／接受邀請頁永遠放在最上層，任何通話或聊天室附加元件都不能吃掉點擊。 */
+    body:not(.chat-active) .app-shell {
+      z-index: 2147483000 !important;
+      pointer-events: auto !important;
+    }
+
+    body:not(.chat-active) > .call-overlay,
+    body:not(.chat-active) > .voice-call-mini-bar,
+    body:not(.chat-active) > .room-toast,
+    body:not(.chat-active) > .privacy-cover {
+      display: none !important;
+      pointer-events: none !important;
+    }
+
     #setupView,
     #acceptView,
     #chatView {
       position: relative;
-      z-index: 2;
-      pointer-events: auto;
+      pointer-events: auto !important;
     }
 
     #setupView,
@@ -38,6 +51,15 @@
       touch-action: pan-y;
     }
 
+    #setupView *,
+    #acceptView *,
+    #chatView input,
+    #chatView textarea,
+    #chatView select,
+    #chatView button {
+      pointer-events: auto;
+    }
+
     #setupView input,
     #setupView textarea,
     #setupView select,
@@ -45,13 +67,9 @@
     #acceptView input,
     #acceptView textarea,
     #acceptView select,
-    #acceptView button,
-    #chatView input,
-    #chatView textarea,
-    #chatView select,
-    #chatView button {
+    #acceptView button {
       position: relative;
-      pointer-events: auto !important;
+      z-index: 3;
       touch-action: manipulation;
     }
 
@@ -59,20 +77,6 @@
     #setupView::after,
     #acceptView::before,
     #acceptView::after {
-      pointer-events: none !important;
-    }
-
-    body:not(.chat-active) .call-overlay,
-    body:not(.chat-active) .voice-call-mini-bar,
-    body:not(.chat-active) .conversation-ended-panel {
-      pointer-events: none !important;
-    }
-
-    .call-overlay.hidden,
-    .voice-call-mini-bar.hidden,
-    .conversation-ended-panel.hidden,
-    .privacy-cover:not(.show) {
-      display: none !important;
       pointer-events: none !important;
     }
 
@@ -92,44 +96,7 @@
       font-weight: 900;
     }
 
-    .wide {
-      width: 100%;
-    }
-
-    .muted,
-    .small-muted {
-      color: #6d7889;
-      line-height: 1.55;
-    }
-
-    .muted {
-      margin: 6px 0 14px;
-      font-size: 13px;
-    }
-
-    .small-muted {
-      margin: 8px 0 0;
-      font-size: 11px;
-    }
-
-    .brand-pill {
-      display: inline-flex;
-      align-items: center;
-      width: fit-content;
-      min-height: 26px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      background: #fff0e5;
-      color: #bd4e08;
-      font-size: 11px;
-      font-weight: 950;
-    }
-
-    .brand-pill.small {
-      min-height: 22px;
-      padding: 3px 8px;
-      font-size: 9px;
-    }
+    .wide { width: 100%; }
 
     .settings-card {
       margin-top: 12px;
@@ -223,7 +190,6 @@
 
       <label class="field-label" for="guestName">我的顯示名稱</label>
       <input id="guestName" class="text-input" type="text" maxlength="30" autocomplete="nickname" placeholder="例如：Lisa、小藍">
-
       <button id="acceptInviteBtn" class="primary-btn full-btn wide" type="button">接受密封邀請並加入</button>
     </section>
 
@@ -236,11 +202,11 @@
           <div id="unreadBadge" class="unread-pill">無未讀</div>
         </div>
         <div class="header-actions">
-          <button id="enableNotifyBtn" class="icon-btn" type="button" title="開啟通知">通知</button>
-          <button id="readUnreadBtn" class="icon-btn" type="button" title="讀取未讀密封包">讀取</button>
-          <button id="clearNowBtn" class="icon-btn danger-soft" type="button" title="立即清空畫面">立即刪</button>
-          <button id="saveFriendBtn" class="icon-btn" type="button" title="加入常用">加常用</button>
-          <button id="resetBtn" class="icon-btn" type="button" title="重置">重置</button>
+          <button id="enableNotifyBtn" class="icon-btn" type="button">通知</button>
+          <button id="readUnreadBtn" class="icon-btn" type="button">讀取</button>
+          <button id="clearNowBtn" class="icon-btn danger-soft" type="button">立即刪</button>
+          <button id="saveFriendBtn" class="icon-btn" type="button">加常用</button>
+          <button id="resetBtn" class="icon-btn" type="button">重置</button>
         </div>
       </header>
 
@@ -259,7 +225,7 @@
 
       <form id="messageForm" class="composer">
         <input id="photoInput" type="file" accept="image/*" hidden>
-        <button id="photoBtn" class="photo-btn" type="button" aria-label="傳送照片">照片</button>
+        <button id="photoBtn" class="photo-btn" type="button">照片</button>
         <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入私・話...">
         <button class="send-btn" type="submit">送出</button>
       </form>
@@ -268,41 +234,70 @@
     <div id="statusBar" class="status-bar" role="status" aria-live="polite">準備好了</div>
   </main>
 
-  <div class="privacy-cover" aria-hidden="true">私・話</div>
-
   <script>
     (() => {
-      function releaseHiddenOverlays() {
-        const setup = document.getElementById('setupView');
-        const accept = document.getElementById('acceptView');
+      const loaded = new Set();
+
+      function loadScript(src) {
+        if (loaded.has(src) || document.querySelector(`script[data-lazy-src="${src}"]`)) {
+          return Promise.resolve();
+        }
+        loaded.add(src);
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = src;
+          script.dataset.lazySrc = src;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
+      async function loadChatAddonsWhenNeeded() {
         const chat = document.getElementById('chatView');
-
-        [setup, accept, chat].forEach((view) => {
-          if (!view) return;
-          view.style.pointerEvents = 'auto';
-        });
-
-        document.querySelectorAll('.call-overlay.hidden, .voice-call-mini-bar.hidden, .conversation-ended-panel.hidden').forEach((element) => {
-          element.style.display = 'none';
-          element.style.pointerEvents = 'none';
-        });
+        if (!chat || chat.classList.contains('hidden')) return;
+        document.body.classList.add('chat-active');
+        try {
+          await loadScript('./room-addon.js');
+          await loadScript('./call-addon.js');
+        } catch (error) {
+          const status = document.getElementById('statusBar');
+          if (status) status.textContent = '聊天室附加功能載入失敗，請重新整理。';
+        }
       }
 
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', releaseHiddenOverlays, { once: true });
-      } else {
-        releaseHiddenOverlays();
+      function keepSetupInteractive() {
+        const chat = document.getElementById('chatView');
+        const isChat = Boolean(chat && !chat.classList.contains('hidden'));
+        document.body.classList.toggle('chat-active', isChat);
+        if (!isChat) {
+          document.body.classList.remove('privacy-hidden', 'keyboard-open');
+          document.querySelectorAll('.call-overlay, .voice-call-mini-bar, .room-toast').forEach((element) => element.remove());
+        }
       }
 
-      window.addEventListener('load', releaseHiddenOverlays, { once: true });
-      setTimeout(releaseHiddenOverlays, 800);
-      setTimeout(releaseHiddenOverlays, 2200);
+      document.addEventListener('DOMContentLoaded', () => {
+        const chat = document.getElementById('chatView');
+        if (chat) {
+          const observer = new MutationObserver(() => {
+            keepSetupInteractive();
+            loadChatAddonsWhenNeeded();
+          });
+          observer.observe(chat, { attributes: true, attributeFilter: ['class'] });
+        }
+        keepSetupInteractive();
+        loadChatAddonsWhenNeeded();
+      }, { once: true });
+
+      window.addEventListener('pageshow', keepSetupInteractive);
+      window.addEventListener('focus', keepSetupInteractive);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) keepSetupInteractive();
+      });
     })();
   </script>
 
   <script src="./app.js"></script>
   <script src="./invite-addon.js"></script>
-  <script src="./room-addon.js"></script>
-  <script src="./call-addon.js"></script>
 </body>
 </html>
