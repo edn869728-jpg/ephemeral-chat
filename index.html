@@ -16,7 +16,7 @@
 <body>
   <main class="app-shell">
     <section class="hero-card" id="setupView">
-      <div class="brand-pill">私・話 v4.3</div>
+      <div class="brand-pill">私・話 v4.4</div>
       <h1>一次性連結<br>加入私・話</h1>
       <p class="muted">
         不手動輸入頻道。訊息會先在手機端加密成 ANG 密封包；未進聊天室可等待，進房後與點開後各有獨立時效。
@@ -54,7 +54,7 @@
 
           <label class="mini-field setting-row">
             <span>邀請有效</span>
-            <input id="inviteTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="30" max="86400" step="10" value="1800">
+            <input id="inviteTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="30" max="21600" step="10" value="1800">
             <em>邀請連結幾秒後失效</em>
           </label>
         </div>
@@ -126,6 +126,7 @@
   </main>
 
   <script src="/app.js"></script>
+  <script src="/invite-addon.js"></script>
   <script src="/room-addon.js"></script>
   <script src="/call-addon.js"></script>
 </body>
