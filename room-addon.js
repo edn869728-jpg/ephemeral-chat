@@ -13,7 +13,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 'room-layout-v4.3';
+  const VERSION = 'room-layout-v4.4.5-interaction-fix';
   const ROOM_SYNC_MS = 2400;
   const MESSAGE_SYNC_MS = 1500;
   const UNREAD_TTL_SECONDS = 21600;
@@ -768,19 +768,40 @@
   }
 
   function watchView() {
-    const observer = new MutationObserver(() => {
+    // 只監看聊天室本身是否顯示。舊版監看整個 body 的所有 class，
+    // 紅綠燈、水滴、Toast、通話列每次更新都會再觸發同步，
+    // 在 iOS 會形成 MutationObserver / API 迴圈，導致畫面看得到但無法點擊。
+    const chat = chatElement();
+    if (!chat) return;
+
+    let lastActive = isChatViewShown();
+    let scheduled = false;
+
+    const applyViewState = () => {
+      scheduled = false;
       const active = isChatViewShown();
       document.body.classList.toggle('chat-active', active);
       installUi();
       bindMessageFormCapture();
+
+      if (active === lastActive) return;
+      lastActive = active;
+
       if (active && !roomEnded) {
         syncRoom();
         refreshDrops();
       } else {
         leaveRoomPresence();
       }
+    };
+
+    const observer = new MutationObserver(() => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(applyViewState);
     });
-    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+    observer.observe(chat, { attributes: true, attributeFilter: ['class'] });
   }
 
   function boot() {

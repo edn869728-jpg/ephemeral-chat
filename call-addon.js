@@ -6,7 +6,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 'voice-call-test-v1';
+  const VERSION = 'voice-call-test-v1.1-interaction-fix';
   const SIGNAL_POLL_MS = 1100;
   const RING_TIMEOUT_MS = 30000;
   const OFFER_WAIT_MS = 10000;
@@ -682,11 +682,16 @@
     pollTimer = setInterval(pollSignals, SIGNAL_POLL_MS);
     pollSignals();
 
-    const observer = new MutationObserver(() => {
-      installUi();
-      if (ui.callButton) ui.callButton.disabled = !currentSession() || !isChatVisible();
-    });
-    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    // 只監看 chatView 顯示狀態，不監看整個頁面的 class。
+    // 否則通話燈號、Toast、訊息動畫都會讓 observer 不斷重跑。
+    const chat = document.getElementById('chatView');
+    if (chat) {
+      const observer = new MutationObserver(() => {
+        installUi();
+        if (ui.callButton) ui.callButton.disabled = !currentSession() || !isChatVisible();
+      });
+      observer.observe(chat, { attributes: true, attributeFilter: ['class'] });
+    }
 
     window.addEventListener('pagehide', sendEndOnPageExit);
     window.addEventListener('beforeunload', sendEndOnPageExit);

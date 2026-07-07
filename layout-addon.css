@@ -724,3 +724,36 @@ body.keyboard-open .voice-call-mini-bar {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.035); box-shadow: 0 0 0 6px rgba(11, 42, 91, .10); }
 }
+
+/* ===== v4.4.5 互動層修正 ===== */
+body.chat-active #chatView {
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+body.chat-active #chatView .chat-header,
+body.chat-active #chatView .chat-box,
+body.chat-active #chatView .composer,
+body.chat-active #chatView button,
+body.chat-active #chatView input,
+body.chat-active #chatView select,
+body.chat-active #chatView textarea {
+  pointer-events: auto;
+}
+
+.room-toast {
+  pointer-events: none !important;
+}
+
+.call-overlay.hidden,
+.conversation-ended-panel.hidden,
+.unread-drop-dock.hidden,
+.voice-call-mini-bar.hidden {
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+.conversation-disabled,
+.conversation-disabled * {
+  pointer-events: none !important;
+}
