@@ -1,51 +1,86 @@
-const CACHE_NAME = 'private-chat-v44-invite-room-call-20260707';
+const CACHE_NAME = 'private-chat-v44-touch-fix-20260707-2';
+const APP_BASE = new URL('./', self.location.href).pathname;
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/invite-addon.js',
-  '/room-addon.js',
-  '/call-addon.js',
-  '/layout-addon.css',
-  '/manifest.json',
-  '/assets/icon-192.png',
-  '/assets/icon-512.png'
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './invite-addon.js',
+  './room-addon.js',
+  './call-addon.js',
+  './layout-addon.css',
+  './manifest.json',
+  './assets/icon-192.png',
+  './assets/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.map((key) => {
-      if (key !== CACHE_NAME) return caches.delete(key);
-      return Promise.resolve();
-    }))).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((key) => {
+        if (key !== CACHE_NAME) return caches.delete(key);
+        return Promise.resolve();
+      })))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const request = event.request;
+  const url = new URL(request.url);
 
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+  if (request.method !== 'GET') return;
+
+  if (url.pathname.includes('/api/')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
 
-  if (event.request.method !== 'GET') return;
+  const isNavigation = request.mode === 'navigate' ||
+    request.destination === 'document' ||
+    url.pathname === APP_BASE ||
+    url.pathname.endsWith('/index.html');
+
+  if (isNavigation) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match('./index.html').then((cached) => cached || caches.match('./')))
+    );
+    return;
+  }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.match(request).then((cached) => {
+      const network = fetch(request).then((response) => {
+        if (response && response.ok && url.origin === self.location.origin) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      });
+      return cached || network;
+    })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const targetUrl = (event.notification.data && event.notification.data.url) || './';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
