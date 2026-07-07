@@ -1,10 +1,12 @@
-const CACHE_NAME = 'ephemeral-chat-v39-voice-test-20260707';
+const CACHE_NAME = 'private-chat-v43-room-layout-20260707';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/app.js',
+  '/room-addon.js',
   '/call-addon.js',
+  '/layout-addon.css',
   '/manifest.json',
   '/assets/icon-192.png',
   '/assets/icon-512.png'

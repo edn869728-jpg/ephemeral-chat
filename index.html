@@ -6,19 +6,20 @@
   <meta name="theme-color" content="#0b2a5b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="臨時對話">
-  <title>臨時對話</title>
+  <meta name="apple-mobile-web-app-title" content="私・話">
+  <title>私・話</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/assets/icon-192.png">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/layout-addon.css">
 </head>
 <body>
   <main class="app-shell">
     <section class="hero-card" id="setupView">
-      <div class="brand-pill">Ephemeral Chat v3.8</div>
-      <h1>一次性連結<br>加入臨時對話</h1>
+      <div class="brand-pill">私・話 v4.3</div>
+      <h1>一次性連結<br>加入私・話</h1>
       <p class="muted">
-        不手動輸入頻道。訊息會先在手機端加密成 ANG 密封包，後端只暫存亂碼；打開讀取時同步刪除。
+        不手動輸入頻道。訊息會先在手機端加密成 ANG 密封包；未進聊天室可等待，進房後與點開後各有獨立時效。
       </p>
 
       <label class="field-label" for="displayName">我的顯示名稱</label>
@@ -34,21 +35,21 @@
         <div class="panel-title">秒數設定</div>
         <div class="settings-list">
           <label class="mini-field setting-row">
-            <span>未讀保留</span>
-            <input id="messageTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="5" max="3600" step="5" value="20">
-            <em>對方還沒開 App 前，密封包最多保留幾秒</em>
+            <span>未進房保留</span>
+            <input id="messageTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="60" max="21600" step="300" value="21600">
+            <em>未進聊天室前，密文最長保留 6 小時</em>
           </label>
 
           <label class="mini-field setting-row">
-            <span>未開封泡泡</span>
-            <input id="sealedBubbleSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="3" max="300" step="1" value="60">
-            <em>進聊天室後沒按住查看，泡泡幾秒消失</em>
+            <span>進房後未開</span>
+            <input id="sealedBubbleSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="300" max="300" step="1" value="300" readonly>
+            <em>進入聊天室後，該批訊息最多保留 5 分鐘</em>
           </label>
 
           <label class="mini-field setting-row">
-            <span>按住查看後</span>
-            <input id="displaySeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="1" max="60" step="1" value="5">
-            <em>從第一次按住看內容開始倒數</em>
+            <span>點開後消失</span>
+            <input id="displaySeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="15" max="60" step="5" value="20">
+            <em>雙方同步；點開單一水滴後才開始倒數</em>
           </label>
 
           <label class="mini-field setting-row">
@@ -57,7 +58,7 @@
             <em>邀請連結幾秒後失效</em>
           </label>
         </div>
-        <p class="small-muted">建立邀請時會把這組秒數帶給對方。訊息內容預設模糊，按住才顯示，放開立刻模糊。</p>
+        <p class="small-muted">建立邀請時會同步閱後秒數；未讀進房後改成一顆一顆的水滴，點哪一顆就開哪一則。</p>
       </div>
 
       <div class="button-row">
@@ -90,9 +91,9 @@
     <section class="chat-card hidden" id="chatView">
       <header class="chat-header">
         <div>
-          <div class="brand-pill small">專屬臨時對話</div>
-          <h2 id="chatTitle">已建立密封對話</h2>
-          <p id="chatSub" class="small-muted">後端只暫存 ANG 亂碼包；讀取時同步刪除。訊息預設模糊，按住才顯示。</p>
+          <div class="brand-pill small">私・話</div>
+          <h2 id="chatTitle">密封對話</h2>
+          <p id="chatSub" class="small-muted">未進房加密等待｜進房後未開 5 分鐘｜點開後限時消失。</p>
           <div id="unreadBadge" class="unread-pill">無未讀</div>
         </div>
         <div class="header-actions">
@@ -116,7 +117,7 @@
       <div id="chatBox" class="chat-box"></div>
 
       <form id="messageForm" class="composer">
-        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入訊息...">
+        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入私・話...">
         <button type="submit">送出</button>
       </form>
     </section>
@@ -125,6 +126,7 @@
   </main>
 
   <script src="/app.js"></script>
+  <script src="/room-addon.js"></script>
   <script src="/call-addon.js"></script>
 </body>
 </html>

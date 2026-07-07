@@ -111,6 +111,7 @@
       .call-round.active { background:#fff; color:#0b2a5b; }
       .call-note { margin:16px 6px 0; color:rgba(255,255,255,.56); font-size:11px; line-height:1.5; }
       .call-incoming-actions.hidden, .call-active-actions.hidden { display:none !important; }
+      .voice-call-mini-bar.hidden { display:none !important; }
       @media (max-width:420px) {
         .call-panel { border-radius:26px; }
         .call-round { width:64px; height:64px; }
@@ -158,6 +159,7 @@
           <div id="voiceActiveActions" class="call-controls call-active-actions hidden">
             <button id="voiceMuteBtn" class="call-round" type="button"><span><strong>🎙</strong>靜音</span></button>
             <button id="voiceSoundBtn" class="call-round" type="button"><span><strong>🔊</strong>聲音</span></button>
+            <button id="voiceMinimizeBtn" class="call-round" type="button"><span><strong>⌄</strong>縮小</span></button>
             <button id="voiceHangupBtn" class="call-round hangup" type="button"><span><strong>✕</strong>掛斷</span></button>
           </div>
 
@@ -165,6 +167,22 @@
         </section>
       `;
       document.body.appendChild(overlay);
+    }
+
+    if (!document.getElementById('voiceCallMiniBar')) {
+      const mini = document.createElement('div');
+      mini.id = 'voiceCallMiniBar';
+      mini.className = 'voice-call-mini-bar hidden';
+      mini.innerHTML = `
+        <button id="voiceMiniMain" class="mini-call-main" type="button">
+          <strong id="voiceMiniName">對方</strong>
+          <span id="voiceMiniDuration">通話中 00:00</span>
+        </button>
+        <button id="voiceMiniMute" class="mini-call-action" type="button" title="靜音">🎙</button>
+        <button id="voiceMiniHangup" class="mini-call-action hangup" type="button" title="掛斷">✕</button>
+      `;
+      const chat = document.getElementById('chatView');
+      (chat || document.body).appendChild(mini);
     }
 
     ui.overlay = document.getElementById('voiceCallOverlay');
@@ -178,7 +196,14 @@
     ui.rejectBtn = document.getElementById('voiceRejectBtn');
     ui.muteBtn = document.getElementById('voiceMuteBtn');
     ui.soundBtn = document.getElementById('voiceSoundBtn');
+    ui.minimizeBtn = document.getElementById('voiceMinimizeBtn');
     ui.hangupBtn = document.getElementById('voiceHangupBtn');
+    ui.miniBar = document.getElementById('voiceCallMiniBar');
+    ui.miniMain = document.getElementById('voiceMiniMain');
+    ui.miniName = document.getElementById('voiceMiniName');
+    ui.miniDuration = document.getElementById('voiceMiniDuration');
+    ui.miniMute = document.getElementById('voiceMiniMute');
+    ui.miniHangup = document.getElementById('voiceMiniHangup');
 
     if (ui.acceptBtn && !ui.acceptBtn.dataset.bound) {
       ui.acceptBtn.dataset.bound = '1';
@@ -186,12 +211,17 @@
       ui.rejectBtn.addEventListener('click', rejectIncomingCall);
       ui.muteBtn.addEventListener('click', toggleMic);
       ui.soundBtn.addEventListener('click', toggleRemoteSound);
+      if (ui.minimizeBtn) ui.minimizeBtn.addEventListener('click', showMiniBar);
       ui.hangupBtn.addEventListener('click', () => endCall('你已掛斷', true));
+      if (ui.miniMain) ui.miniMain.addEventListener('click', () => showOverlay('active', '通話中'));
+      if (ui.miniMute) ui.miniMute.addEventListener('click', toggleMic);
+      if (ui.miniHangup) ui.miniHangup.addEventListener('click', () => endCall('你已掛斷', true));
     }
   }
 
   function showOverlay(mode, message) {
     installUi();
+    if (ui.miniBar) ui.miniBar.classList.add('hidden');
     ui.overlay.classList.remove('hidden');
     ui.name.textContent = peerDisplayName();
     ui.duration.textContent = '';
@@ -203,7 +233,21 @@
 
   function hideOverlay() {
     if (ui.overlay) ui.overlay.classList.add('hidden');
-    if (ui.callButton) ui.callButton.classList.remove('busy');
+    if (ui.callButton && callState === 'idle') ui.callButton.classList.remove('busy');
+  }
+
+  function showMiniBar() {
+    installUi();
+    if (callState !== 'connected') return;
+    if (ui.overlay) ui.overlay.classList.add('hidden');
+    if (ui.miniBar) {
+      ui.miniName.textContent = peerDisplayName();
+      ui.miniBar.classList.remove('hidden');
+    }
+  }
+
+  function hideMiniBar() {
+    if (ui.miniBar) ui.miniBar.classList.add('hidden');
   }
 
   function updateDuration() {
@@ -212,6 +256,7 @@
     const min = String(Math.floor(total / 60)).padStart(2, '0');
     const sec = String(total % 60).padStart(2, '0');
     ui.duration.textContent = `${min}:${sec}`;
+    if (ui.miniDuration) ui.miniDuration.textContent = `通話中 ${min}:${sec}`;
   }
 
   function startDuration() {
@@ -267,8 +312,8 @@
       if (state === 'connected') {
         clearTimeout(disconnectTimer);
         callState = 'connected';
-        showOverlay('active', '通話中');
         if (!callStartedAt) startDuration();
+        showMiniBar();
         status('語音通話已連線。');
       } else if (state === 'failed' || state === 'closed') {
         endCall('通話連線已結束', false);
@@ -301,7 +346,7 @@
       event: {
         type,
         callId,
-        fromLabel: myDisplayName(),
+        fromLabel: '',
         payload,
         at: Date.now(),
         version: VERSION
@@ -512,6 +557,10 @@
         ? '<span><strong>🔇</strong>已靜音</span>'
         : '<span><strong>🎙</strong>靜音</span>';
     }
+    if (ui.miniMute) {
+      ui.miniMute.classList.toggle('active', micMuted);
+      ui.miniMute.textContent = micMuted ? '🔇' : '🎙';
+    }
   }
 
   function toggleRemoteSound() {
@@ -576,6 +625,7 @@
       ui.soundBtn.innerHTML = '<span><strong>🔊</strong>聲音</span>';
     }
 
+    hideMiniBar();
     if (message) status(message);
     setTimeout(hideOverlay, 650);
     setTimeout(() => { endingLocally = false; }, 800);
@@ -618,7 +668,7 @@
         body: JSON.stringify({
           myChannel: s.myChannel,
           peerChannel: s.peerChannel,
-          event: { type: 'end', callId, fromLabel: myDisplayName(), payload: {}, at: Date.now(), version: VERSION }
+          event: { type: 'end', callId, fromLabel: '', payload: {}, at: Date.now(), version: VERSION }
         }),
         cache: 'no-store',
         keepalive: true
@@ -640,6 +690,7 @@
 
     window.addEventListener('pagehide', sendEndOnPageExit);
     window.addEventListener('beforeunload', sendEndOnPageExit);
+    window.addEventListener('ephemeral-room-ended', () => endCall('對話已結束', true));
   }
 
   if (document.readyState === 'loading') {
