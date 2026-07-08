@@ -1,5 +1,5 @@
 /*
- * 私・話 v4.4｜一次性邀請狀態與 API 防卡住模組
+ * 私・話 v4.4.6｜一次性邀請狀態、API 防卡住、未讀水滴保護
  * 載入順序：app.js → invite-addon.js → room-addon.js → call-addon.js
  */
 (() => {
@@ -26,6 +26,49 @@
       LIMITS.inviteTtlSeconds = { min: 30, max: 21600 };
     }
   } catch (_) {}
+
+  /*
+   * v4.4.6 關鍵修正：
+   * app.js 舊流程在進房後約 350ms 會呼叫 readAndDeleteSealed，
+   * 造成 room-addon.js 還沒載入，未讀密文就先被整批刪除。
+   * 此處在 window.load/init 之前覆蓋舊流程，只更新未讀數，不讀取內容。
+   */
+  async function waterdropSafeUnreadCheck() {
+    try {
+      if (typeof session === 'undefined' || !session || !session.myChannel) return;
+      const data = await api('unreadCount', { myChannel: session.myChannel });
+      const unread = Math.max(0, Number(data && data.unread || 0));
+
+      try {
+        if (typeof updateUnreadBadge === 'function') updateUnreadBadge(unread);
+        if (typeof saveLastUnread === 'function') saveLastUnread(unread);
+        if (unread > Number(typeof lastUnreadCount !== 'undefined' ? lastUnreadCount : 0)
+          && typeof showUnreadNotification === 'function') {
+          showUnreadNotification(unread);
+        }
+        if (typeof lastUnreadCount !== 'undefined') lastUnreadCount = unread;
+      } catch (_) {}
+    } catch (_) {
+      // 輪詢失敗時保持安靜，不可退回舊的整批刪除流程。
+    }
+  }
+
+  async function waterdropSafeManualRead() {
+    try {
+      const statusBar = document.getElementById('statusBar');
+      if (statusBar) statusBar.textContent = '未讀會顯示成水滴，請點選水滴逐則開啟。';
+    } catch (_) {}
+  }
+
+  try {
+    checkUnreadAndMaybeRead = waterdropSafeUnreadCheck;
+    window.checkUnreadAndMaybeRead = waterdropSafeUnreadCheck;
+    readAndDeleteNow = waterdropSafeManualRead;
+    window.readAndDeleteNow = waterdropSafeManualRead;
+  } catch (_) {
+    window.checkUnreadAndMaybeRead = waterdropSafeUnreadCheck;
+    window.readAndDeleteNow = waterdropSafeManualRead;
+  }
 
   async function timedApi(action, payload) {
     const controller = new AbortController();
