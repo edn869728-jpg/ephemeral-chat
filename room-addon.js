@@ -13,7 +13,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 'room-layout-v4.4.5-interaction-fix';
+  const VERSION = 'room-layout-v4.5-pairing-delivery-fix';
   const ROOM_SYNC_MS = 2400;
   const MESSAGE_SYNC_MS = 1500;
   const UNREAD_TTL_SECONDS = 21600;
@@ -489,12 +489,15 @@
         timestamp: Date.now()
       }, s.sealedKey);
 
-      await postApi('sendSealedMessage', {
+      const receipt = await postApi('sendSealedMessage', {
         peerChannel: s.peerChannel,
         packet,
         messageTtlSeconds: UNREAD_TTL_SECONDS
       });
-      status('已送出密封訊息。');
+      const queued = Math.max(1, Number(receipt && receipt.queuedCount || 1));
+      status(receipt && receipt.recipientInRoom
+        ? `訊息已送達對方目前的閱讀輪次｜郵筒 ${queued} 則`
+        : `訊息已送達加密郵筒｜等待對方開啟｜郵筒 ${queued} 則`);
     } catch (err) {
       status(err && err.message ? err.message : '發送失敗。');
       showToast('剛剛那則可能沒有送出去');
