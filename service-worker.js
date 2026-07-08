@@ -1,4 +1,4 @@
-const CACHE_NAME = 'private-chat-v445-interaction-fix-20260707-2';
+const CACHE_NAME = 'private-chat-v446-waterdrop-fix-20260708-1';
 const APP_BASE = new URL('./', self.location.href).pathname;
 const STATIC_ASSETS = [
   './',
