@@ -1,706 +1,759 @@
-/*
- * 私・話｜語音通話試用模組 v1
- * 載入順序：app.js 後面再載入本檔。
- * 只新增 WebRTC 語音與短暫 signaling，不改原本訊息流程。
- */
-(() => {
-  'use strict';
+/* 私・話 v4.3｜聊天室滿版排版覆蓋 */
+:root {
+  --private-app-height: 100dvh;
+  --private-app-top: 0px;
+  --private-orange: #ff7a1a;
+  --private-blue: #0b2a5b;
+  --private-ink: #071426;
+}
 
-  const VERSION = 'voice-call-test-v1.1-interaction-fix';
-  const SIGNAL_POLL_MS = 1100;
-  const RING_TIMEOUT_MS = 30000;
-  const OFFER_WAIT_MS = 10000;
-  const DISCONNECT_GRACE_MS = 7000;
+html,
+body {
+  overscroll-behavior: none;
+}
 
-  const RTC_CONFIG = {
-    iceServers: [
-      { urls: ['stun:stun.cloudflare.com:3478'] }
-    ],
-    iceCandidatePoolSize: 4
-  };
+body.chat-active {
+  height: var(--private-app-height);
+  min-height: var(--private-app-height);
+  overflow: hidden !important;
+  position: fixed;
+  inset: var(--private-app-top) 0 auto 0;
+  width: 100%;
+}
 
-  let pc = null;
-  let localStream = null;
-  let remoteStream = null;
-  let callId = '';
-  let direction = '';
-  let callState = 'idle';
-  let incomingOffer = null;
-  let pendingIce = [];
-  let pollTimer = null;
-  let polling = false;
-  let ringTimer = null;
-  let disconnectTimer = null;
-  let callStartedAt = 0;
-  let durationTimer = null;
-  let micMuted = false;
-  let remoteMuted = false;
-  let endingLocally = false;
+body.chat-active .app-shell {
+  width: 100%;
+  height: var(--private-app-height);
+  min-height: 0 !important;
+  max-height: var(--private-app-height);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
 
-  const ui = {};
+body.chat-active #chatView.chat-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 122, 26, .12), transparent 32%),
+    linear-gradient(180deg, #f7faff 0%, #edf3fb 100%);
+}
 
-  function currentSession() {
-    try {
-      return typeof session !== 'undefined' ? session : null;
-    } catch (_) {
-      return null;
-    }
+body.chat-active #chatView.hidden {
+  display: none !important;
+}
+
+#chatView .chat-header {
+  position: relative;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: max(9px, env(safe-area-inset-top)) 10px 8px;
+  background: rgba(255, 255, 255, .94);
+  border-bottom: 1px solid rgba(11, 42, 91, .10);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+#chatView .chat-header h2 {
+  margin: 2px 0 1px;
+  font-size: clamp(18px, 5vw, 23px);
+  line-height: 1.1;
+  color: var(--private-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chatView .chat-header .brand-pill.small {
+  margin: 0;
+  padding: 3px 8px;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
+#chatView #chatSub {
+  margin: 3px 0 0;
+  max-width: 640px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #667085;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chatView .header-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  max-width: 190px;
+}
+
+#chatView .header-actions .icon-btn {
+  min-width: 38px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#chatView .header-actions #clearNowBtn,
+#chatView .header-actions #resetBtn {
+  display: none !important;
+}
+
+#chatView .header-actions #enableNotifyBtn,
+#chatView .header-actions #saveFriendBtn {
+  background: #eef3fb;
+  color: #17355e;
+}
+
+#chatView .end-conversation-btn {
+  background: #fff0ef !important;
+  color: #b42318 !important;
+  border-color: rgba(180, 35, 24, .13) !important;
+}
+
+.room-presence-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  min-width: 0;
+}
+
+.presence-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 850;
+  color: #344054;
+}
+
+.presence-light {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d92d20;
+  box-shadow: 0 0 0 4px rgba(217, 45, 32, .10);
+  transition: .18s ease;
+}
+
+.presence-light.online {
+  background: #12b76a;
+  box-shadow: 0 0 0 4px rgba(18, 183, 106, .12), 0 0 14px rgba(18, 183, 106, .50);
+}
+
+.presence-light.away {
+  background: #f79009;
+  box-shadow: 0 0 0 4px rgba(247, 144, 9, .12);
+}
+
+.presence-light.ended {
+  background: #d92d20;
+  box-shadow: 0 0 0 4px rgba(217, 45, 32, .13);
+}
+
+.room-round-timer {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #027a48;
+  font-size: 10px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.room-round-timer.urgent {
+  background: #fff1f0;
+  color: #b42318;
+  animation: privatePulse 1s ease-in-out infinite;
+}
+
+.room-timing-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  color: #667085;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.room-timing-tools label {
+  font-weight: 900;
+  color: #344054;
+}
+
+.room-timing-tools select {
+  height: 25px;
+  padding: 0 22px 0 8px;
+  border: 1px solid rgba(11, 42, 91, .14);
+  border-radius: 9px;
+  background: #fff;
+  color: #0b2a5b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#chatView .install-box {
+  position: relative;
+  z-index: 9;
+  margin: 6px 10px 0;
+  padding: 9px 11px;
+  border-radius: 14px;
+  font-size: 11px;
+}
+
+#chatView .chat-box {
+  grid-row: 3;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding: 12px 12px 24px 58px;
+  background: transparent;
+}
+
+#chatView .chat-box:empty::before {
+  content: '訊息只在需要的時間存在';
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: rgba(52, 64, 84, .38);
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
+.unread-drop-dock {
+  position: absolute;
+  z-index: 8;
+  left: 8px;
+  top: 114px;
+  bottom: calc(70px + env(safe-area-inset-bottom));
+  display: flex;
+  width: 43px;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 4px;
+  border: 1px solid rgba(11, 42, 91, .09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .78);
+  box-shadow: 0 10px 30px rgba(10, 32, 69, .10);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.unread-drop-dock::-webkit-scrollbar {
+  display: none;
+}
+
+.drop-dock-title {
+  color: #667085;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .08em;
+}
+
+.unread-drops {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.unread-drop {
+  position: relative;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 72% 36% 68% 38%;
+  transform: rotate(45deg);
+  background: linear-gradient(145deg, #ff9d4d, #ff6a00 55%, #d94800);
+  box-shadow: 0 7px 14px rgba(217, 72, 0, .27), inset 4px 4px 6px rgba(255, 255, 255, .22);
+  color: #fff;
+  cursor: pointer;
+  animation: dropArrive .28s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.unread-drop::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  left: 5px;
+  top: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .58);
+}
+
+.unread-drop span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-45deg);
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.unread-drop:active {
+  transform: rotate(45deg) scale(.88);
+}
+
+.unread-drop:disabled {
+  opacity: .45;
+}
+
+#chatView .composer {
+  position: relative;
+  z-index: 14;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: end;
+  margin: 0;
+  padding: 8px 9px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(11, 42, 91, .10);
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+#chatView .composer input,
+#chatView .composer textarea {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid rgba(11, 42, 91, .14);
+  border-radius: 16px;
+  background: #f8faff;
+  font-size: 16px;
+  outline: none;
+}
+
+#chatView .composer input:focus,
+#chatView .composer textarea:focus {
+  border-color: rgba(255, 122, 26, .60);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 122, 26, .10);
+}
+
+#chatView .composer > button[type='submit'] {
+  min-width: 58px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #ff8b2b, #f06400);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+  box-shadow: 0 8px 18px rgba(240, 100, 0, .20);
+}
+
+.knock-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(11, 42, 91, .10);
+  border-radius: 15px;
+  background: #eef4ff;
+  color: #0b2a5b;
+  font-size: 13px;
+  font-weight: 950;
+  box-shadow: none;
+}
+
+.knock-btn:active {
+  transform: scale(.92);
+}
+
+#chatView .msg {
+  position: relative;
+  max-width: min(82%, 560px);
+  margin-bottom: 9px;
+  border-radius: 18px;
+  box-shadow: 0 7px 18px rgba(16, 36, 70, .08);
+}
+
+#chatView .msg.mine {
+  margin-left: auto;
+  background: linear-gradient(145deg, #0b2a5b, #163e75);
+  color: #fff;
+}
+
+#chatView .msg.peek,
+#chatView .msg.opened-message {
+  background: #fff;
+  color: #101828;
+  border: 1px solid rgba(11, 42, 91, .10);
+}
+
+#chatView .opened-countdown {
+  display: block;
+  margin-top: 5px;
+  color: #f06400;
+  font-size: 9px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+#chatView .msg.mine .opened-countdown {
+  color: #ffd3ad;
+}
+
+#chatView .msg.vanishing {
+  opacity: 0;
+  transform: scale(.94) translateY(-4px);
+  transition: .18s ease;
+}
+
+.legacy-unread-hidden,
+.legacy-read-hidden {
+  display: none !important;
+}
+
+.room-toast {
+  position: fixed;
+  z-index: 100020;
+  left: 50%;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 15px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 999px;
+  background: rgba(5, 20, 45, .92);
+  color: #fff;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .25);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: toastIn .22s ease both;
+}
+
+.conversation-ended-panel {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  text-align: center;
+  background: rgba(247, 250, 255, .97);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.conversation-ended-panel .ended-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: #fff0ef;
+  color: #d92d20;
+  font-size: 42px;
+  font-weight: 300;
+}
+
+.conversation-ended-panel h2 {
+  margin: 0 0 8px;
+  color: #101828;
+}
+
+.conversation-ended-panel p {
+  max-width: 340px;
+  margin: 0 0 20px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.conversation-disabled {
+  pointer-events: none;
+  opacity: .4;
+}
+
+/* 通話接通後縮成上方列，仍可操作聊天室 */
+.voice-call-mini-bar {
+  position: absolute;
+  z-index: 30;
+  left: 8px;
+  right: 8px;
+  top: calc(max(7px, env(safe-area-inset-top)) + 80px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 45px;
+  padding: 6px 7px 6px 12px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(5, 24, 55, .96), rgba(11, 42, 91, .95));
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(2, 15, 38, .22);
+}
+
+.voice-call-mini-bar .mini-call-main {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.voice-call-mini-bar .mini-call-main strong,
+.voice-call-mini-bar .mini-call-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-call-mini-bar .mini-call-main strong {
+  font-size: 12px;
+}
+
+.voice-call-mini-bar .mini-call-main span {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, .68);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-call-mini-bar .mini-call-action {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .13);
+  color: #fff;
+  font-size: 14px;
+}
+
+.voice-call-mini-bar .mini-call-action.hangup {
+  background: #d92d20;
+}
+
+body.keyboard-open #chatView .chat-header {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+body.keyboard-open #chatView #chatSub,
+body.keyboard-open #chatView .brand-pill.small,
+body.keyboard-open .room-timing-tools > span {
+  display: none;
+}
+
+body.keyboard-open #chatView .chat-header h2 {
+  font-size: 17px;
+}
+
+body.keyboard-open .unread-drop-dock {
+  top: 76px;
+  bottom: 62px;
+}
+
+body.keyboard-open .voice-call-mini-bar {
+  top: 69px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@keyframes privatePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+
+@keyframes dropArrive {
+  from { opacity: 0; transform: rotate(45deg) scale(.55) translateY(-8px); }
+  to { opacity: 1; transform: rotate(45deg) scale(1) translateY(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (min-width: 720px) {
+  body.chat-active #chatView.chat-card {
+    max-width: 760px;
+    margin: 0 auto;
+    border-left: 1px solid rgba(11, 42, 91, .08);
+    border-right: 1px solid rgba(11, 42, 91, .08);
+  }
+}
+
+@media (max-width: 390px) {
+  #chatView .chat-header {
+    gap: 5px;
   }
 
-  function isChatVisible() {
-    const chat = document.getElementById('chatView');
-    return Boolean(chat && !chat.classList.contains('hidden'));
+  #chatView .header-actions {
+    max-width: 126px;
   }
 
-  async function postApi(action, payload) {
-    if (typeof api !== 'function') {
-      throw new Error('找不到原本的 API 函式，請確認 call-addon.js 放在 app.js 後面。');
-    }
-    return api(action, payload);
+  #chatView .header-actions .icon-btn {
+    min-width: 34px;
+    padding: 0 6px;
   }
 
-  function status(text) {
-    try {
-      if (typeof setStatus === 'function') setStatus(text);
-    } catch (_) {}
-    if (ui.status) ui.status.textContent = text || '';
+  #chatView #saveFriendBtn {
+    display: none;
   }
 
-  function peerDisplayName() {
-    const s = currentSession();
-    if (!s) return '對方';
-    try {
-      if (typeof findFriendNameBySession === 'function') {
-        const name = findFriendNameBySession(s);
-        if (name) return name;
-      }
-    } catch (_) {}
-    return '對方';
+  .room-timing-tools {
+    max-width: calc(100vw - 150px);
+    overflow: hidden;
   }
-
-  function myDisplayName() {
-    const s = currentSession();
-    return (s && String(s.label || '').trim()) || '對話中的人';
-  }
-
-  function makeId() {
-    if (crypto && crypto.randomUUID) return crypto.randomUUID();
-    return `call_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  }
-
-  function installStyles() {
-    if (document.getElementById('voiceCallAddonStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'voiceCallAddonStyles';
-    style.textContent = `
-      .voice-call-btn { background:#e8f7ee !important; color:#147a3d !important; }
-      .voice-call-btn.busy { background:#fff3e8 !important; color:#b84a00 !important; }
-      .call-overlay { position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; padding:max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom)); background:rgba(2,10,25,.78); backdrop-filter:blur(18px); }
-      .call-overlay.hidden { display:none !important; }
-      .call-panel { width:min(100%,390px); border-radius:30px; padding:24px 20px 20px; color:#fff; background:linear-gradient(160deg,#061633 0%,#0b2a5b 58%,#1a2038 100%); border:1px solid rgba(255,255,255,.18); box-shadow:0 28px 90px rgba(0,0,0,.52); text-align:center; }
-      .call-avatar { width:88px; height:88px; margin:0 auto 14px; border-radius:50%; display:grid; place-items:center; font-size:38px; background:radial-gradient(circle at 35% 25%,#ffb56f,#d95f00 54%,#7b2d00 100%); box-shadow:0 14px 34px rgba(217,95,0,.36); }
-      .call-kicker { margin:0 0 5px; color:rgba(255,255,255,.62); font-size:12px; font-weight:900; letter-spacing:.08em; }
-      .call-name { margin:0; font-size:28px; line-height:1.12; }
-      .call-status { min-height:24px; margin:9px 0 0; color:rgba(255,255,255,.82); font-size:14px; }
-      .call-duration { min-height:24px; margin:3px 0 16px; font-variant-numeric:tabular-nums; font-weight:900; color:#ffca99; }
-      .call-controls { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:10px; }
-      .call-round { width:68px; height:68px; border:0; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:950; cursor:pointer; color:#fff; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.16); }
-      .call-round strong { display:block; font-size:23px; line-height:1; margin-bottom:3px; }
-      .call-round.accept { background:#16a34a; }
-      .call-round.reject, .call-round.hangup { background:#dc2626; }
-      .call-round.active { background:#fff; color:#0b2a5b; }
-      .call-note { margin:16px 6px 0; color:rgba(255,255,255,.56); font-size:11px; line-height:1.5; }
-      .call-incoming-actions.hidden, .call-active-actions.hidden { display:none !important; }
-      .voice-call-mini-bar.hidden { display:none !important; }
-      @media (max-width:420px) {
-        .call-panel { border-radius:26px; }
-        .call-round { width:64px; height:64px; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  function installUi() {
-    installStyles();
-
-    const headerActions = document.querySelector('#chatView .header-actions');
-    if (headerActions && !document.getElementById('voiceCallBtn')) {
-      const button = document.createElement('button');
-      button.id = 'voiceCallBtn';
-      button.type = 'button';
-      button.className = 'icon-btn voice-call-btn';
-      button.title = '語音通話';
-      button.textContent = '☎ 語音';
-      button.addEventListener('click', startOutgoingCall);
-      headerActions.prepend(button);
-      ui.callButton = button;
-    } else {
-      ui.callButton = document.getElementById('voiceCallBtn');
-    }
-
-    if (!document.getElementById('voiceCallOverlay')) {
-      const overlay = document.createElement('div');
-      overlay.id = 'voiceCallOverlay';
-      overlay.className = 'call-overlay hidden';
-      overlay.innerHTML = `
-        <section class="call-panel" role="dialog" aria-modal="true" aria-labelledby="voiceCallName">
-          <audio id="voiceCallRemoteAudio" autoplay playsinline></audio>
-          <div class="call-avatar" aria-hidden="true">☎</div>
-          <p class="call-kicker">私・話語音</p>
-          <h2 id="voiceCallName" class="call-name">對方</h2>
-          <p id="voiceCallStatus" class="call-status">準備中</p>
-          <div id="voiceCallDuration" class="call-duration"></div>
-
-          <div id="voiceIncomingActions" class="call-controls call-incoming-actions hidden">
-            <button id="voiceRejectBtn" class="call-round reject" type="button"><span><strong>✕</strong>拒絕</span></button>
-            <button id="voiceAcceptBtn" class="call-round accept" type="button"><span><strong>✓</strong>接聽</span></button>
-          </div>
-
-          <div id="voiceActiveActions" class="call-controls call-active-actions hidden">
-            <button id="voiceMuteBtn" class="call-round" type="button"><span><strong>🎙</strong>靜音</span></button>
-            <button id="voiceSoundBtn" class="call-round" type="button"><span><strong>🔊</strong>聲音</span></button>
-            <button id="voiceMinimizeBtn" class="call-round" type="button"><span><strong>⌄</strong>縮小</span></button>
-            <button id="voiceHangupBtn" class="call-round hangup" type="button"><span><strong>✕</strong>掛斷</span></button>
-          </div>
-
-          <p class="call-note">試用版只在雙方 App 開啟時穩定響鈴；第一次使用會詢問麥克風權限。</p>
-        </section>
-      `;
-      document.body.appendChild(overlay);
-    }
-
-    if (!document.getElementById('voiceCallMiniBar')) {
-      const mini = document.createElement('div');
-      mini.id = 'voiceCallMiniBar';
-      mini.className = 'voice-call-mini-bar hidden';
-      mini.innerHTML = `
-        <button id="voiceMiniMain" class="mini-call-main" type="button">
-          <strong id="voiceMiniName">對方</strong>
-          <span id="voiceMiniDuration">通話中 00:00</span>
-        </button>
-        <button id="voiceMiniMute" class="mini-call-action" type="button" title="靜音">🎙</button>
-        <button id="voiceMiniHangup" class="mini-call-action hangup" type="button" title="掛斷">✕</button>
-      `;
-      const chat = document.getElementById('chatView');
-      (chat || document.body).appendChild(mini);
-    }
-
-    ui.overlay = document.getElementById('voiceCallOverlay');
-    ui.name = document.getElementById('voiceCallName');
-    ui.status = document.getElementById('voiceCallStatus');
-    ui.duration = document.getElementById('voiceCallDuration');
-    ui.remoteAudio = document.getElementById('voiceCallRemoteAudio');
-    ui.incomingActions = document.getElementById('voiceIncomingActions');
-    ui.activeActions = document.getElementById('voiceActiveActions');
-    ui.acceptBtn = document.getElementById('voiceAcceptBtn');
-    ui.rejectBtn = document.getElementById('voiceRejectBtn');
-    ui.muteBtn = document.getElementById('voiceMuteBtn');
-    ui.soundBtn = document.getElementById('voiceSoundBtn');
-    ui.minimizeBtn = document.getElementById('voiceMinimizeBtn');
-    ui.hangupBtn = document.getElementById('voiceHangupBtn');
-    ui.miniBar = document.getElementById('voiceCallMiniBar');
-    ui.miniMain = document.getElementById('voiceMiniMain');
-    ui.miniName = document.getElementById('voiceMiniName');
-    ui.miniDuration = document.getElementById('voiceMiniDuration');
-    ui.miniMute = document.getElementById('voiceMiniMute');
-    ui.miniHangup = document.getElementById('voiceMiniHangup');
-
-    if (ui.acceptBtn && !ui.acceptBtn.dataset.bound) {
-      ui.acceptBtn.dataset.bound = '1';
-      ui.acceptBtn.addEventListener('click', acceptIncomingCall);
-      ui.rejectBtn.addEventListener('click', rejectIncomingCall);
-      ui.muteBtn.addEventListener('click', toggleMic);
-      ui.soundBtn.addEventListener('click', toggleRemoteSound);
-      if (ui.minimizeBtn) ui.minimizeBtn.addEventListener('click', showMiniBar);
-      ui.hangupBtn.addEventListener('click', () => endCall('你已掛斷', true));
-      if (ui.miniMain) ui.miniMain.addEventListener('click', () => showOverlay('active', '通話中'));
-      if (ui.miniMute) ui.miniMute.addEventListener('click', toggleMic);
-      if (ui.miniHangup) ui.miniHangup.addEventListener('click', () => endCall('你已掛斷', true));
-    }
-  }
-
-  function showOverlay(mode, message) {
-    installUi();
-    if (ui.miniBar) ui.miniBar.classList.add('hidden');
-    ui.overlay.classList.remove('hidden');
-    ui.name.textContent = peerDisplayName();
-    ui.duration.textContent = '';
-    ui.status.textContent = message || '';
-    ui.incomingActions.classList.toggle('hidden', mode !== 'incoming');
-    ui.activeActions.classList.toggle('hidden', mode === 'incoming');
-    if (ui.callButton) ui.callButton.classList.add('busy');
-  }
-
-  function hideOverlay() {
-    if (ui.overlay) ui.overlay.classList.add('hidden');
-    if (ui.callButton && callState === 'idle') ui.callButton.classList.remove('busy');
-  }
-
-  function showMiniBar() {
-    installUi();
-    if (callState !== 'connected') return;
-    if (ui.overlay) ui.overlay.classList.add('hidden');
-    if (ui.miniBar) {
-      ui.miniName.textContent = peerDisplayName();
-      ui.miniBar.classList.remove('hidden');
-    }
-  }
-
-  function hideMiniBar() {
-    if (ui.miniBar) ui.miniBar.classList.add('hidden');
-  }
-
-  function updateDuration() {
-    if (!ui.duration || !callStartedAt) return;
-    const total = Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000));
-    const min = String(Math.floor(total / 60)).padStart(2, '0');
-    const sec = String(total % 60).padStart(2, '0');
-    ui.duration.textContent = `${min}:${sec}`;
-    if (ui.miniDuration) ui.miniDuration.textContent = `通話中 ${min}:${sec}`;
-  }
-
-  function startDuration() {
-    callStartedAt = Date.now();
-    updateDuration();
-    clearInterval(durationTimer);
-    durationTimer = setInterval(updateDuration, 1000);
-  }
-
-  async function getMicrophone() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('這個瀏覽器不支援麥克風通話。');
-    }
-    if (localStream) return localStream;
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      },
-      video: false
-    });
-    return localStream;
-  }
-
-  async function buildPeerConnection() {
-    if (pc) return pc;
-    pc = new RTCPeerConnection(RTC_CONFIG);
-    remoteStream = new MediaStream();
-    if (ui.remoteAudio) ui.remoteAudio.srcObject = remoteStream;
-
-    pc.onicecandidate = (event) => {
-      if (!event.candidate || !callId) return;
-      sendSignal('ice', { candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate }).catch(() => {});
-    };
-
-    pc.ontrack = (event) => {
-      const streams = event.streams || [];
-      if (streams[0]) {
-        ui.remoteAudio.srcObject = streams[0];
-      } else if (event.track) {
-        remoteStream.addTrack(event.track);
-        ui.remoteAudio.srcObject = remoteStream;
-      }
-      ui.remoteAudio.muted = remoteMuted;
-      const play = ui.remoteAudio.play();
-      if (play && typeof play.catch === 'function') play.catch(() => {});
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (!pc) return;
-      const state = pc.connectionState;
-      if (state === 'connected') {
-        clearTimeout(disconnectTimer);
-        callState = 'connected';
-        if (!callStartedAt) startDuration();
-        showMiniBar();
-        status('語音通話已連線。');
-      } else if (state === 'failed' || state === 'closed') {
-        endCall('通話連線已結束', false);
-      } else if (state === 'disconnected') {
-        clearTimeout(disconnectTimer);
-        disconnectTimer = setTimeout(() => {
-          if (pc && pc.connectionState === 'disconnected') endCall('網路中斷，通話已結束', false);
-        }, DISCONNECT_GRACE_MS);
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      if (!pc) return;
-      if (pc.iceConnectionState === 'checking') ui.status.textContent = '正在建立安全連線…';
-    };
-
-    const stream = await getMicrophone();
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-    return pc;
-  }
-
-  async function sendSignal(type, payload = {}) {
-    const s = currentSession();
-    if (!s || !s.peerChannel || !s.myChannel) throw new Error('尚未建立可通話的對話。');
-    if (!callId) throw new Error('通話識別碼不存在。');
-
-    return postApi('callPush', {
-      myChannel: s.myChannel,
-      peerChannel: s.peerChannel,
-      event: {
-        type,
-        callId,
-        fromLabel: '',
-        payload,
-        at: Date.now(),
-        version: VERSION
-      }
-    });
-  }
-
-  async function startOutgoingCall() {
-    if (callState !== 'idle') return;
-    const s = currentSession();
-    if (!s || !s.myChannel || !s.peerChannel) {
-      status('尚未建立可通話的對話。');
-      return;
-    }
-    if (!isChatVisible()) {
-      status('請先進入聊天室再撥打。');
-      return;
-    }
-
-    callId = makeId();
-    direction = 'outgoing';
-    callState = 'starting';
-    endingLocally = false;
-    showOverlay('active', `正在撥給 ${peerDisplayName()}…`);
-
-    try {
-      await buildPeerConnection();
-      await sendSignal('ring', {});
-
-      const offer = await pc.createOffer({ offerToReceiveAudio: true });
-      await pc.setLocalDescription(offer);
-      await sendSignal('offer', { description: pc.localDescription });
-
-      callState = 'ringing';
-      ui.status.textContent = '等待對方接聽…';
-      status('語音來電已送出。');
-
-      clearTimeout(ringTimer);
-      ringTimer = setTimeout(async () => {
-        if (callState === 'ringing' || callState === 'starting') {
-          try { await sendSignal('cancel', {}); } catch (_) {}
-          endCall('對方未接聽', false);
-        }
-      }, RING_TIMEOUT_MS);
-    } catch (err) {
-      endCall(err && err.message ? err.message : '無法開始語音通話', false);
-    }
-  }
-
-  async function acceptIncomingCall() {
-    if (callState !== 'incoming') return;
-    callState = 'accepting';
-    showOverlay('active', '正在接通…');
-
-    try {
-      await buildPeerConnection();
-      const offer = await waitForIncomingOffer();
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      await flushPendingIce();
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await sendSignal('answer', { description: pc.localDescription });
-      ui.status.textContent = '正在建立安全連線…';
-      status('已接聽，正在連線。');
-    } catch (err) {
-      try { await sendSignal('reject', { reason: 'connect_failed' }); } catch (_) {}
-      endCall(err && err.message ? err.message : '接聽失敗', false);
-    }
-  }
-
-  async function rejectIncomingCall() {
-    if (callState !== 'incoming') return;
-    try { await sendSignal('reject', {}); } catch (_) {}
-    endCall('你已拒絕來電', false);
-  }
-
-  function waitForIncomingOffer() {
-    if (incomingOffer) return Promise.resolve(incomingOffer);
-    return new Promise((resolve, reject) => {
-      const started = Date.now();
-      const timer = setInterval(() => {
-        if (incomingOffer) {
-          clearInterval(timer);
-          resolve(incomingOffer);
-          return;
-        }
-        if (Date.now() - started >= OFFER_WAIT_MS || callState === 'idle') {
-          clearInterval(timer);
-          reject(new Error('沒有收到通話連線資料，請重新撥打。'));
-        }
-      }, 150);
-    });
-  }
-
-  async function flushPendingIce() {
-    if (!pc || !pc.remoteDescription) return;
-    const list = pendingIce.splice(0);
-    for (const candidate of list) {
-      try { await pc.addIceCandidate(candidate); } catch (_) {}
-    }
-  }
-
-  async function processSignalEnvelope(envelope) {
-    const s = currentSession();
-    if (!s || !envelope || envelope.fromChannel !== s.peerChannel) return;
-    const event = envelope.event || {};
-    const type = String(event.type || '');
-    const incomingCallId = String(event.callId || '');
-    if (!incomingCallId) return;
-
-    if (type === 'ring') {
-      if (callState !== 'idle') {
-        const oldCallId = callId;
-        callId = incomingCallId;
-        try { await sendSignal('busy', {}); } catch (_) {}
-        callId = oldCallId;
-        return;
-      }
-      callId = incomingCallId;
-      direction = 'incoming';
-      callState = 'incoming';
-      incomingOffer = null;
-      pendingIce = [];
-      endingLocally = false;
-      showOverlay('incoming', '語音來電');
-      vibrateIncoming();
-      notifyIncomingCall();
-      clearTimeout(ringTimer);
-      ringTimer = setTimeout(() => {
-        if (callState === 'incoming') endCall('未接來電', false);
-      }, RING_TIMEOUT_MS + 5000);
-      return;
-    }
-
-    if (incomingCallId !== callId) return;
-
-    if (type === 'offer') {
-      incomingOffer = event.payload && event.payload.description;
-      return;
-    }
-
-    if (type === 'answer' && direction === 'outgoing' && pc) {
-      clearTimeout(ringTimer);
-      const answer = event.payload && event.payload.description;
-      if (!answer) return;
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      await flushPendingIce();
-      ui.status.textContent = '正在建立安全連線…';
-      return;
-    }
-
-    if (type === 'ice') {
-      const raw = event.payload && event.payload.candidate;
-      if (!raw) return;
-      const candidate = new RTCIceCandidate(raw);
-      if (pc && pc.remoteDescription) {
-        try { await pc.addIceCandidate(candidate); } catch (_) {}
-      } else {
-        pendingIce.push(candidate);
-      }
-      return;
-    }
-
-    if (type === 'reject') {
-      endCall('對方拒絕了通話', false);
-      return;
-    }
-
-    if (type === 'busy') {
-      endCall('對方目前正在通話中', false);
-      return;
-    }
-
-    if (type === 'cancel') {
-      endCall('對方已取消來電', false);
-      return;
-    }
-
-    if (type === 'end') {
-      endCall('對方已掛斷', false);
-    }
-  }
-
-  async function pollSignals() {
-    if (polling) return;
-    const s = currentSession();
-    if (!s || !s.myChannel) return;
-    polling = true;
-    try {
-      const data = await postApi('callPull', { myChannel: s.myChannel });
-      const events = Array.isArray(data.events) ? data.events : [];
-      for (const envelope of events) {
-        try { await processSignalEnvelope(envelope); } catch (_) {}
-      }
-    } catch (_) {
-      // 通話模組不能阻斷原本聊天室；輪詢失敗時靜默等待下一次。
-    } finally {
-      polling = false;
-    }
-  }
-
-  function toggleMic() {
-    micMuted = !micMuted;
-    if (localStream) localStream.getAudioTracks().forEach((track) => { track.enabled = !micMuted; });
-    if (ui.muteBtn) {
-      ui.muteBtn.classList.toggle('active', micMuted);
-      ui.muteBtn.innerHTML = micMuted
-        ? '<span><strong>🔇</strong>已靜音</span>'
-        : '<span><strong>🎙</strong>靜音</span>';
-    }
-    if (ui.miniMute) {
-      ui.miniMute.classList.toggle('active', micMuted);
-      ui.miniMute.textContent = micMuted ? '🔇' : '🎙';
-    }
-  }
-
-  function toggleRemoteSound() {
-    remoteMuted = !remoteMuted;
-    if (ui.remoteAudio) ui.remoteAudio.muted = remoteMuted;
-    if (ui.soundBtn) {
-      ui.soundBtn.classList.toggle('active', remoteMuted);
-      ui.soundBtn.innerHTML = remoteMuted
-        ? '<span><strong>🔈</strong>聲音關</span>'
-        : '<span><strong>🔊</strong>聲音</span>';
-    }
-  }
-
-  async function endCall(message, sendEnd) {
-    if (callState === 'idle' && !pc && !localStream) return;
-    const activeCallId = callId;
-    const shouldSignal = Boolean(sendEnd && activeCallId && !endingLocally);
-    endingLocally = true;
-
-    if (shouldSignal) {
-      try { await sendSignal('end', {}); } catch (_) {}
-    }
-
-    clearTimeout(ringTimer);
-    clearTimeout(disconnectTimer);
-    clearInterval(durationTimer);
-    ringTimer = null;
-    disconnectTimer = null;
-    durationTimer = null;
-
-    if (pc) {
-      try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch (_) {}
-    }
-    pc = null;
-
-    if (localStream) {
-      try { localStream.getTracks().forEach((track) => track.stop()); } catch (_) {}
-    }
-    localStream = null;
-    remoteStream = null;
-    if (ui.remoteAudio) {
-      try { ui.remoteAudio.pause(); } catch (_) {}
-      ui.remoteAudio.srcObject = null;
-      ui.remoteAudio.muted = false;
-    }
-
-    callId = '';
-    direction = '';
-    callState = 'idle';
-    incomingOffer = null;
-    pendingIce = [];
-    callStartedAt = 0;
-    micMuted = false;
-    remoteMuted = false;
-
-    if (ui.muteBtn) {
-      ui.muteBtn.classList.remove('active');
-      ui.muteBtn.innerHTML = '<span><strong>🎙</strong>靜音</span>';
-    }
-    if (ui.soundBtn) {
-      ui.soundBtn.classList.remove('active');
-      ui.soundBtn.innerHTML = '<span><strong>🔊</strong>聲音</span>';
-    }
-
-    hideMiniBar();
-    if (message) status(message);
-    setTimeout(hideOverlay, 650);
-    setTimeout(() => { endingLocally = false; }, 800);
-  }
-
-  function vibrateIncoming() {
-    try {
-      if (navigator.vibrate) navigator.vibrate([220, 100, 220, 100, 360]);
-    } catch (_) {}
-  }
-
-  async function notifyIncomingCall() {
-    if (!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
-    const payload = {
-      body: '打開私・話以接聽。',
-      icon: '/assets/icon-192.png',
-      badge: '/assets/icon-192.png',
-      tag: 'ephemeral-voice-call',
-      renotify: true,
-      data: { url: location.origin + location.pathname }
-    };
-    try {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration && registration.showNotification) {
-        await registration.showNotification('有人打語音給你', payload);
-        return;
-      }
-    } catch (_) {}
-    try { new Notification('有人打語音給你', payload); } catch (_) {}
-  }
-
-  function sendEndOnPageExit() {
-    if (callState === 'idle' || !callId) return;
-    const s = currentSession();
-    if (!s || !s.myChannel || !s.peerChannel) return;
-    try {
-      fetch('/api/callPush', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({
-          myChannel: s.myChannel,
-          peerChannel: s.peerChannel,
-          event: { type: 'end', callId, fromLabel: '', payload: {}, at: Date.now(), version: VERSION }
-        }),
-        cache: 'no-store',
-        keepalive: true
-      });
-    } catch (_) {}
-  }
-
-  function boot() {
-    installUi();
-    clearInterval(pollTimer);
-    pollTimer = setInterval(pollSignals, SIGNAL_POLL_MS);
-    pollSignals();
-
-    // 只監看 chatView 顯示狀態，不監看整個頁面的 class。
-    // 否則通話燈號、Toast、訊息動畫都會讓 observer 不斷重跑。
-    const chat = document.getElementById('chatView');
-    if (chat) {
-      const observer = new MutationObserver(() => {
-        installUi();
-        if (ui.callButton) ui.callButton.disabled = !currentSession() || !isChatVisible();
-      });
-      observer.observe(chat, { attributes: true, attributeFilter: ['class'] });
-    }
-
-    window.addEventListener('pagehide', sendEndOnPageExit);
-    window.addEventListener('beforeunload', sendEndOnPageExit);
-    window.addEventListener('ephemeral-room-ended', () => endCall('對話已結束', true));
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot, { once: true });
-  } else {
-    boot();
-  }
-})();
+}
+
+
+/* ===== v4.4 一次性邀請狀態列 ===== */
+.invite-live-status {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(11, 42, 91, .10);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .72);
+}
+
+.invite-live-status .invite-status-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #9aa4b2;
+  box-shadow: 0 0 0 4px rgba(154, 164, 178, .16);
+}
+
+.invite-live-status strong,
+.invite-live-status small {
+  display: block;
+}
+
+.invite-live-status strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.invite-live-status small {
+  margin-top: 3px;
+  color: rgba(11, 42, 91, .62);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.invite-live-status.waiting .invite-status-light {
+  background: #f5a524;
+  box-shadow: 0 0 0 4px rgba(245, 165, 36, .17);
+  animation: privatePulse 1.3s ease-in-out infinite;
+}
+
+.invite-live-status.accepted .invite-status-light {
+  background: #1aa36f;
+  box-shadow: 0 0 0 4px rgba(26, 163, 111, .17);
+}
+
+.invite-live-status.expired .invite-status-light,
+.invite-live-status.canceled .invite-status-light,
+.invite-live-status.error .invite-status-light {
+  background: #d92d20;
+  box-shadow: 0 0 0 4px rgba(217, 45, 32, .14);
+}
+
+.invite-cancel-btn[hidden] {
+  display: none !important;
+}
+
+.invite-ready-pulse {
+  animation: inviteReadyPulse 1s ease-in-out 3;
+}
+
+@keyframes inviteReadyPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); box-shadow: 0 0 0 6px rgba(11, 42, 91, .10); }
+}
+
+/* ===== v4.4.5 互動層修正 ===== */
+body.chat-active #chatView {
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+body.chat-active #chatView .chat-header,
+body.chat-active #chatView .chat-box,
+body.chat-active #chatView .composer,
+body.chat-active #chatView button,
+body.chat-active #chatView input,
+body.chat-active #chatView select,
+body.chat-active #chatView textarea {
+  pointer-events: auto;
+}
+
+.room-toast {
+  pointer-events: none !important;
+}
+
+.call-overlay.hidden,
+.conversation-ended-panel.hidden,
+.unread-drop-dock.hidden,
+.voice-call-mini-bar.hidden {
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+.conversation-disabled,
+.conversation-disabled * {
+  pointer-events: none !important;
+}
