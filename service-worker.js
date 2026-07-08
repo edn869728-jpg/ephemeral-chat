@@ -1,4 +1,4 @@
-const CACHE_NAME = 'private-chat-v446-waterdrop-fix-20260708-1';
+const CACHE_NAME = 'private-chat-v45-pairing-delivery-20260708-1';
 const APP_BASE = new URL('./', self.location.href).pathname;
 const STATIC_ASSETS = [
   './',
@@ -6,6 +6,8 @@ const STATIC_ASSETS = [
   './style.css',
   './app.js',
   './invite-addon.js',
+  './pairing-addon.js',
+  './pairing-addon.css',
   './room-addon.js',
   './call-addon.js',
   './layout-addon.css',
@@ -42,16 +44,29 @@ async function fetchFreshTransformed(request) {
   const url = new URL(request.url);
   const isRoomOrCall = url.pathname.endsWith('/room-addon.js') || url.pathname.endsWith('/call-addon.js');
   const isLayoutCss = url.pathname.endsWith('/layout-addon.css');
-  if (!isRoomOrCall && !isLayoutCss) return response;
+  const contentType = String(response.headers.get('content-type') || '');
+  const isHtml = request.mode === 'navigate' || request.destination === 'document' ||
+    contentType.includes('text/html') || url.pathname === APP_BASE || url.pathname.endsWith('/index.html');
+  if (!isRoomOrCall && !isLayoutCss && !isHtml) return response;
 
   let text = await response.text();
   if (isRoomOrCall) text = text.replace(OBSERVER_PATTERN, OBSERVER_FIX);
   if (isLayoutCss && !text.includes('v4.4.5 interaction fix')) text += INTERACTION_CSS;
+  if (isHtml) {
+    if (!text.includes('pairing-addon.css')) {
+      text = text.replace('</head>', '  <link rel="stylesheet" href="./pairing-addon.css">\n</head>');
+    }
+    if (!text.includes('pairing-addon.js')) {
+      text = text.replace('</body>', '  <script src="./pairing-addon.js"></script>\n</body>');
+    }
+  }
 
   const headers = new Headers(response.headers);
-  headers.set('content-type', isLayoutCss
-    ? 'text/css; charset=utf-8'
-    : 'application/javascript; charset=utf-8');
+  headers.set('content-type', isHtml
+    ? 'text/html; charset=utf-8'
+    : isLayoutCss
+      ? 'text/css; charset=utf-8'
+      : 'application/javascript; charset=utf-8');
   headers.set('cache-control', 'no-store, max-age=0');
 
   return new Response(text, {
@@ -108,7 +123,7 @@ self.addEventListener('fetch', (event) => {
 
   if (isNavigation) {
     event.respondWith(
-      fetch(request, { cache: 'no-store' })
+      fetchFreshTransformed(request)
         .then((response) => {
           if (response && response.ok && url.origin === self.location.origin) {
             caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
