@@ -1,0 +1,133 @@
+/* 私・話 v4.5｜邀請碼與 QR 配對 */
+.pair-entry-card,
+.pair-code-card {
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid #dfe4ec;
+  border-radius: 17px;
+  background: #f1f4f8;
+}
+.pair-entry-title,
+.pair-code-title {
+  color: #0b2348;
+  font-size: 13px;
+  font-weight: 900;
+}
+.pair-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 8px;
+  margin-top: 9px;
+}
+.pair-code-input {
+  min-width: 0;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid #dfe4ec;
+  border-radius: 14px;
+  outline: 0;
+  background: #fff;
+  color: #07162f;
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: .12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.pair-code-input:focus {
+  border-color: #e96b19;
+  box-shadow: 0 0 0 3px rgba(233,107,25,.13);
+}
+.pair-join-btn,
+.pair-copy-btn {
+  min-height: 46px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg,#e96b19,#bd4e08);
+  color: #fff;
+  font-weight: 900;
+}
+.pair-entry-note,
+.pair-code-note {
+  margin: 8px 0 0;
+  color: #6d7889;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.pair-code-grid {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 188px;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+.pair-code-value {
+  padding: 12px 10px;
+  border: 1px dashed rgba(233,107,25,.45);
+  border-radius: 15px;
+  background: #fffaf6;
+  color: #9b3f05;
+  font-size: clamp(23px,7vw,34px);
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-align: center;
+  user-select: all;
+}
+.pair-code-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 9px;
+}
+.pair-link-btn {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 13px;
+  background: #e8edf5;
+  color: #0b2348;
+  font-weight: 900;
+}
+.pair-qr {
+  width: 188px;
+  height: 188px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #dfe4ec;
+  overflow: hidden;
+}
+.pair-qr img,
+.pair-qr canvas { max-width: 100%; height: auto !important; }
+.pair-qr-fallback {
+  color: #6d7889;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+.pair-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 850;
+}
+.pair-state-light {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f79009;
+  box-shadow: 0 0 0 4px rgba(247,144,9,.12);
+}
+.pair-state.accepted .pair-state-light { background:#12b76a; box-shadow:0 0 0 4px rgba(18,183,106,.12); }
+.pair-state.error .pair-state-light { background:#d92d20; box-shadow:0 0 0 4px rgba(217,45,32,.12); }
+#acceptView .pair-entry-card { margin-top: 12px; }
+@media (max-width:520px) {
+  .pair-code-grid { grid-template-columns:1fr; }
+  .pair-qr { margin:0 auto; }
+}

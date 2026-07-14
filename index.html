@@ -2,141 +2,1399 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b2a5b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="私•話">
   <title>私•話</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/assets/icon-192.png">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./assets/icon-512.png">
+
+  <style>
+    html {
+      position: static !important;
+      inset: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+    }
+
+    body:not(.chat-active) {
+      position: relative !important;
+      inset: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      min-height: 100dvh !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      overscroll-behavior-y: auto !important;
+      touch-action: pan-y manipulation !important;
+    }
+
+    body:not(.chat-active) .app-shell {
+      position: relative !important;
+      inset: auto !important;
+      width: min(100%, 580px) !important;
+      height: auto !important;
+      min-height: 100dvh !important;
+      margin: 0 auto !important;
+      overflow: visible !important;
+      z-index: auto !important;
+      pointer-events: auto !important;
+    }
+
+    body:not(.chat-active) #setupView,
+    body:not(.chat-active) #acceptView {
+      position: relative !important;
+      flex: none !important;
+      min-height: auto !important;
+      overflow: visible !important;
+      pointer-events: auto !important;
+      touch-action: pan-y manipulation !important;
+    }
+
+    body:not(.chat-active) #setupView *,
+    body:not(.chat-active) #acceptView * {
+      pointer-events: auto !important;
+    }
+
+    body:not(.chat-active) input,
+    body:not(.chat-active) textarea,
+    body:not(.chat-active) select,
+    body:not(.chat-active) button {
+      position: relative !important;
+      z-index: 2 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    body:not(.chat-active) button {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body:not(.chat-active) > :not(.app-shell):not(script) {
+      pointer-events: none !important;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .ghost-btn {
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 14px;
+      background: #e8edf5;
+      color: #0b2348;
+      font-weight: 900;
+    }
+
+    .wide { width: 100%; }
+    .settings-card { margin-top: 12px; }
+
+    .version-proof {
+      display: inline-flex;
+      margin: 0 0 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eef3fb;
+      color: #244b78;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    @media (max-width: 430px) {
+      .settings-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  :root {
+  --navy-950: #07162f;
+  --navy-900: #0b2348;
+  --navy-700: #244b78;
+  --orange: #e96b19;
+  --orange-dark: #bd4e08;
+  --orange-soft: #fff0e5;
+  --paper: #f7f8fb;
+  --white: #ffffff;
+  --text: #101827;
+  --muted: #6d7889;
+  --line: #dfe4ec;
+  --danger: #b42318;
+  --shadow: 0 18px 55px rgba(2, 12, 30, .28);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+  background:
+    radial-gradient(circle at 15% 8%, rgba(233, 107, 25, .32), transparent 30%),
+    linear-gradient(160deg, var(--navy-950), var(--navy-900));
+  color: var(--text);
+}
+
+button,
+input,
+textarea { font: inherit; }
+
+button {
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active { transform: translateY(1px); }
+button:disabled { opacity: .55; cursor: default; }
+
+.app-shell {
+  position: fixed;
+  inset: 0;
+  width: min(100%, 580px);
+  height: 100dvh;
+  margin: 0 auto;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.setup-card,
+.chat-card {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.55);
+  background: rgba(250,251,253,.98);
+  box-shadow: var(--shadow);
+  border-radius: 24px;
+}
+
+.setup-card {
+  padding: 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.setup-card::-webkit-scrollbar { display: none; }
+
+.setup-head {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.logo,
+.chat-logo {
+  display: grid;
+  place-items: center;
+  color: rgb(46, 255, 4);
+  background: linear-gradient(145deg, var(--orange), var(--orange-dark));
+  box-shadow: 0 10px 24px rgba(25, 80, 233, 0.28);
+  font-weight: 950;
+  letter-spacing: -.03em;
+}
+
+.logo {
+  width: 150px;
+  height: 150px;
+  border-radius: 18px;
+  font-size: 32px;
+}
+
+.setup-head h1 {
+  margin: 0;
+  color: var(--navy-950);
+  font-size: clamp(25px, 7vw, 35px);
+  line-height: 1.06;
+  letter-spacing: -.05em;
+}
+
+.setup-head p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.field-label,
+.panel-title {
+  color: var(--navy-900);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.field-label {
+  display: block;
+  margin: 10px 0 6px;
+}
+
+.text-input,
+textarea,
+.composer input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--text);
+  outline: none;
+}
+
+.text-input {
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 14px;
+}
+
+.text-input:focus,
+textarea:focus,
+.composer input:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(233,107,25,.13);
+}
+
+.panel {
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: #f1f4f8;
+}
+
+.settings-panel { padding-bottom: 10px; }
+
+.settings-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.setting-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--white);
+}
+
+.setting-row span {
+  grid-column: 1 / -1;
+  color: var(--navy-700);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.seconds-input {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  border: 0;
+  border-bottom: 2px solid var(--orange);
+  outline: none;
+  background: transparent;
+  color: var(--navy-950);
+  text-align: center;
+  font-weight: 950;
+}
+
+.setting-row em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.panel-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.main-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.compact-actions { margin-top: 8px; }
+
+.primary-btn,
+.soft-btn,
+.full-btn {
+  min-height: 44px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 900;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+  color: white;
+}
+
+.soft-btn {
+  background: #e8edf5;
+  color: var(--navy-900);
+}
+
+.full-btn {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.invite-panel textarea {
+  height: 74px;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  resize: none;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.friend-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+}
+
+.friend-main {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.friend-main strong,
+.friend-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-main strong { color: var(--navy-900); }
+.friend-main span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+.friend-action {
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: #e8edf5;
+  color: var(--navy-900);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.friend-action.danger-soft { color: var(--danger); background: #ffe9e7; }
+
+.chat-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px;
+}
+
+.chat-header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 8px;
+  padding: 2px 2px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.chat-title-row {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-title-wrap,
+.title-side {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.chat-logo {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 12px;
+}
+
+.chat-name-wrap { min-width: 0; }
+
+.chat-name-wrap h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--navy-950);
+  font-size: 18px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-name-wrap p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.unread-pill,
+.leave-btn {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.unread-pill {
+  padding: 6px 9px;
+  background: #e8edf5;
+  color: var(--navy-900);
+}
+
+.unread-pill.active {
+  background: var(--orange-soft);
+  color: var(--orange-dark);
+}
+
+.leave-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  background: #ffe9e7;
+  color: var(--danger);
+}
+
+.chat-tools {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.chat-tools button {
+  min-width: 0;
+  min-height: 34px;
+  border-radius: 11px;
+  padding: 6px 4px;
+  background: #e8edf5;
+  color: var(--navy-900);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.install-box {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 13px;
+  background: var(--orange-soft);
+  color: var(--orange-dark);
+}
+
+.install-box strong { font-size: 11px; }
+.install-box p { margin: 2px 0 0; font-size: 10px; }
+.install-actions { display: flex; gap: 5px; }
+.install-actions button {
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: white;
+  color: var(--orange-dark);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.chat-box {
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: linear-gradient(180deg, #f8f9fb, #eef2f7);
+}
+
+.msg {
+  position: relative;
+  width: fit-content;
+  max-width: 86%;
+  margin: 7px 0;
+  padding: 9px 38px 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 15px 15px 15px 5px;
+  background: white;
+  box-shadow: 0 6px 18px rgba(11,35,72,.06);
+  line-height: 1.42;
+  word-break: break-word;
+}
+
+.msg.mine {
+  margin-left: auto;
+  border-radius: 15px 15px 5px 15px;
+  border-color: #ffd8bd;
+  background: var(--orange-soft);
+  animation: messageVanish var(--vanish-ms, 5s) forwards;
+}
+
+.msg.system {
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.msg-sender {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.msg-text { font-size: 14px; }
+
+.msg-delete {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(180,35,24,.08);
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.msg-image {
+  display: block;
+  width: min(230px, 58vw);
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 11px;
+  background: #dfe4ec;
+  transition: filter .12s ease;
+  -webkit-user-drag: none;
+}
+
+.msg.image-msg { padding: 8px 35px 8px 8px; }
+
+.peek-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--orange-dark);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.peek-dot {
+  display: block;
+  position: relative;
+  width: 54px;
+  height: 30px;
+  margin: 7px auto 0;
+  border-radius: 999px;
+  background: rgba(233,107,25,.13);
+  touch-action: none;
+}
+
+.peek-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--orange);
+  box-shadow: 0 0 0 5px rgba(233,107,25,.13);
+  transform: translate(-50%, -50%);
+}
+
+.msg.peek.revealed .peek-dot { background: rgba(233,107,25,.22); }
+
+.composer {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 58px;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.composer input {
+  min-width: 0;
+  height: 43px;
+  padding: 0 12px;
+  border-radius: 13px;
+}
+
+.photo-btn,
+.send-btn {
+  height: 43px;
+  border-radius: 13px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.photo-btn {
+  background: #e8edf5;
+  color: var(--navy-900);
+}
+
+.send-btn {
+  background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+  color: white;
+}
+
+.status-bar {
+  flex: 0 0 auto;
+  min-height: 27px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 5px 10px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 999px;
+  background: rgba(0,0,0,.18);
+  color: rgba(255,255,255,.84);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.privacy-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  place-items: center;
+  background: rgba(7,22,47,.97);
+  color: white;
+  font-weight: 900;
+  letter-spacing: .15em;
+}
+
+body.privacy-hidden .privacy-cover { display: grid; }
+body.privacy-hidden .app-shell { filter: blur(12px); }
+
+.hidden { display: none !important; }
+
+@keyframes messageVanish {
+  0%, 82% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-3px); }
+}
+
+@media (max-width: 390px) {
+  .app-shell { padding-inline: 7px; }
+  .setup-card { padding: 14px; }
+  .settings-list { gap: 5px; }
+  .setting-row { padding: 7px; }
+  .title-side { gap: 5px; }
+  .unread-pill { padding-inline: 7px; }
+}
+
+/* ===== ANG FIX：重新排版 + 移除左側長條 + 鍵盤不重排 ===== */
+:root{
+  --app-height: 100svh;
+}
+
+/* 讓聊天頁用固定啟動高度，鍵盤跳出時不要把整個介面壓扁 */
+body.chat-active,
+body.chat-active html{
+  height: var(--app-height) !important;
+  min-height: var(--app-height) !important;
+  overflow: hidden !important;
+}
+
+.app-shell{
+  height: var(--app-height) !important;
+  min-height: var(--app-height) !important;
+  max-height: var(--app-height) !important;
+}
+
+/* 首頁重新排版：原本 grid 只有 56px，但 logo 是 150px，會擠出左側怪長條 */
+.setup-head{
+  grid-template-columns: 82px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 14px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.setup-title{
+  min-width: 0 !important;
+}
+
+.logo{
+  width: 76px !important;
+  height: 76px !important;
+  max-width: 76px !important;
+  max-height: 76px !important;
+  border-radius: 20px !important;
+  object-fit: cover !important;
+  display: block !important;
+  box-shadow: 0 10px 24px rgba(11,35,72,.16) !important;
+  background: #07162f !important;
+  color: transparent !important;
+}
+
+.logo-mark{
+  width: 76px !important;
+  height: 76px !important;
+  border-radius: 20px !important;
+  display: grid !important;
+  place-items: center !important;
+  background: linear-gradient(145deg, var(--navy-900), var(--navy-950)) !important;
+  color: #fff !important;
+  font-weight: 950 !important;
+  box-shadow: 0 10px 24px rgba(11,35,72,.16) !important;
+}
+
+/* 避免任何外部圖片 / base64 logo 撐破版面 */
+.setup-card img,
+.chat-card img{
+  max-width: 100% !important;
+}
+
+/* 聊天頁固定骨架：不因鍵盤變高變低而重排 */
+.chat-card{
+  height: calc(var(--app-height) - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  min-height: 0 !important;
+}
+
+.chat-header{
+  flex: 0 0 auto !important;
+}
+
+.chat-box{
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.composer{
+  flex: 0 0 auto !important;
+}
+
+/* iOS 聚焦時不要放大造成畫面跳動 */
+input,
+textarea,
+select{
+  font-size: 16px !important;
+}
+
+/* 小手機再縮一點，避免 logo 擠壓文字 */
+@media (max-width: 390px){
+  .setup-head{
+    grid-template-columns: 70px minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+  .logo,
+  .logo-mark{
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 17px !important;
+  }
+  .setup-head h1{
+    font-size: 26px !important;
+  }
+}
+
+
+/* ===== ANG FIX：推薦碼 / 邀請碼顯示區 ===== */
+.invite-code-card{
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+}
+.invite-code-label{
+  color: var(--navy-900);
+  font-size: 12px;
+  font-weight: 950;
+  margin-bottom: 7px;
+}
+.invite-code-box{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.invite-code-value{
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px dashed #b9c4d4;
+  border-radius: 14px;
+  background: #f7f8fb;
+  color: var(--navy-950);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: .03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.copy-code-btn{
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #e8edf5;
+  color: var(--navy-900);
+  font-weight: 950;
+}
+
+
+/* ===== ANG FIX：未讀訊息固定可見 + 邀請分享精簡 ===== */
+.unread-dock{
+  flex: 0 0 auto;
+  min-height: 58px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #cfe0f6;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f7fbff, #edf4fd);
+  box-shadow: 0 8px 20px rgba(11,35,72,.08);
+  position: relative;
+  z-index: 6;
+}
+
+.unread-dock-copy{
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.unread-dock-copy strong{
+  display: block;
+  color: var(--navy-900);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.unread-drop{
+  width: 18px;
+  height: 24px;
+  flex: 0 0 18px;
+  display: block;
+  border-radius: 50% 50% 55% 55%;
+  background: linear-gradient(180deg, #2ca7ff, #1268e8);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 5px rgba(35,134,239,.10);
+}
+
+.unread-dock .unread-pill{
+  display: inline-flex !important;
+  margin-top: 3px;
+  padding: 3px 8px;
+  min-height: 22px;
+  align-items: center;
+  background: #e8edf5;
+  color: var(--navy-900);
+  font-size: 11px;
+  font-weight: 950;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: static !important;
+  transform: none !important;
+}
+
+.unread-dock .unread-pill.active{
+  background: #dcebff;
+  color: #075ec8;
+}
+
+.unread-read-btn{
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1677ea, #075ec8);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow: none;
+}
+
+.invite-link-storage{
+  position: absolute !important;
+  left: -99999px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.share-invite-btn::before{
+  content: "↗";
+  margin-right: 6px;
+  font-size: 16px;
+  vertical-align: -1px;
+}
+
+#invitePanel .invite-code-card{
+  margin-top: 8px;
+}
+
+#invitePanel .compact-actions{
+  margin-top: 10px;
+}
+
+@media (max-width: 390px){
+  .unread-dock{
+    min-height: 54px;
+    padding: 7px 8px;
+  }
+  .unread-read-btn{
+    padding-inline: 10px;
+  }
+}
+
+</style>
 </head>
 <body>
   <main class="app-shell">
-    <section class="hero-card" id="setupView">
-      <div class="brand-pill">Zero-Knowledge v4.1</div>
-      <h1>永久專屬頻道<br>無痕密封對話</h1>
-      <p class="muted">
-        對話建立完全在手機端運算。後端只充當不具名的 ANG 密封包郵筒，不建立邀請紀錄。
-      </p>
-
-      <div class="identity-card">
-        <div class="panel-title">我的固定身份</div>
-        <div class="identity-row">
-          <input id="displayName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
-          <button id="saveIdentityBtn" class="ghost-btn" type="button">儲存</button>
+    <section class="setup-card" id="setupView">
+      <div class="version-proof">TOUCH FIX 4.4.4</div>
+      <header class="setup-head">
+       <img
+        src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAQAElEQVR4AezcS45sy1k24PKRwLJxE8EIQAK7Z0YBbXfASB4Ew2AGNEACd6CNR2H3sCx5BkY0LSNDwz5f7b12rcpambkucY/n1x+78rJWRHzPl+x4s/aBr375o5e/NRj4DMz1GfjDP/n+7wwGJT8DL/5fcwJfNbcjGyJAgACB4QSehY3hCm6+oJcXAaCDJtkigdQC//XXP/u71HOaj8AVga2AcGU+9z4XEACeG7mCwJACQsCQbR2qqNtQMFRxlYuJ5QWAUDAIECBAoHkBgSBtiwSAtJ5mI9CVgN8CdNUum70RWAeCm7c8fSjw6U0B4JODPwlMKyAETNv6oQoXBo63UwA4buYOAgQIEGhYQBh43JzlXQFgkfCTwMQCfgswcfMHL30JA4OXeao8AeAUm5sIECBAoCeBJQjEz572nX6vbzMKAG8WHhGYWsBvAaZu/1TFRwiIMVXRG8UKABsoXiJAgACB8QUiBMQYv9K3CtePBIC1hscEJhfwW4DJPwCTlh8hIMZs5QsAs3VcvQQIECCwKRAhIMbmm0O8+L4IAeC9h2cEphfwW4DpPwLTA0QIiDE6hAAweofVR4AAAQKnBEYLAbcIAsCtiOcECLz4LYAPAYFPAhECYnx6NtafAsBY/VQNgWQCQkAyShMNIBAhIEa/pXzcuQDw0cQrBAgQIEBgU2CkECAAbLbYiwQIECBAYFsgQkCM7XfbfHVrVwLAlorXCBB4FfDPAK8M/iCwKdB7CBAANtvqRQIECBAg8FygjxCwXYcAsO3iVQIEPgv4LcBnCD8I3BGIEBDjztvNviwANNsaGyNAgACBngRaDQH3DAWAezJeJ0Dgi4DfAnyh8IDAQ4GeQoAA8LCV3iRAgACBHgT+4I//4j9KjD0WEQJi7Lk2/zX3VxAA7tt4hwCBlYDfAqwwPCwqsOdgL7WhI3tpPQQIAKU+NdYhQIAAgbsCjw7Wuzc1+sa6lj/6yx/++3qU3vKj9QSARzreI0DgnYDfArzj8OSkwPqAXB6fnKq729ZhYHlcqwgBoJa8dQkQIDCJwHLILz8nKXt3mUsQWH7uvvHphY8vEAAe+3iXAAECBA4KLAf98vPg7dNfvgSB5WcuEAEgl6x5CQwq4J8BBm3shbKWg375eWEqt24ILEFg+blxyeZLz14UAJ4JeZ8AAQIEPggsh338/PCmF7IKLEEgfl5ZSAC4oudeApMK+C3AfI2Pg3495hNos+IIAevxtsvnjwSA50auIECAwLQCy6E/LUBnhS9hYM+2BYA9Sq4hQIDARALLoR8/Jyp7qFKXIBA/7xUmANyT8ToBAg8F/DPAQ57u3ozDfhndbd6GHwpECFjG+kIBYK3hMQECBCYTcOiP2PD7Na2DgABw38k7BAgQGFJgOfTj55AFKuqpQAQBAeApkwsIELgn4J8B7sm0+Xoc+DHa3J1dpRLYO48AsFfKdQQIEOhUIA79GJ1u37YzCQgAmWBNS4AAgdoCcejHqL0P65cU2L+WALDfypUECGwI+GeADZTKL8WhH6PyNizfuIAA0HiDbI8AAQJ7BeLQj7H3eteNJ3CkIgHgiJZrCRAg0KBAHPoxGtyaLTUsIAA03BxbI9CLgH8GqNOpOPRj1Fndqu0JHNuRAHDMy9UECBCoLhCHfozqG7GBrgUEgK7bZ/MECMwkEId+jJlqVut+gaNXCgBHxVxPgMCmgH8G2GRJ9qKDPxmliT4LCACfIfwgQIBAiwJx8MdocW/21JLA8b0IAMfN3EGAAIHsAnHox8i+kAWmFRAApm29wgkQaFXAwd9qZ9rd15mdCQBn1NxDgMCmgP8OYJNl94tx8MfYfYMLCVwQEAAu4LmVAAECqQQc/KkkZ5znXM0CwDk3dxEgQCCJQBz8MZJMZhICBwQEgANYLiVAgEBKAQd/Ss155zpbuQBwVs59BAhsCvjvADZZPrzo8P9A4oXCAgJAYXDLESAwt0Ac/DHmVlB9OoHzMwkA5+3cSYAAgUMCDv5DXC7OLCAAZAY2PQECBELA4R8KRmqBK/MJAFf03EuAAIEnAnHwx3hymbcJFBcQAIqTW5DA+AL+Q8BPPXbwf3LwZy6Ba/MKANf83E2AAIFNAYf/JosXGxIQABpqhq0QIDCGgMN/jD62XsXV/QkAVwXdT4AAgc8CcfDH+PzUDwJNCwgATbfH5ggQ6EXAwd9Lp0bZ5/U6BIDrhmYgQGBDYKb/ENDhv/EB8FLzAgJA8y2yQQIEWhZw+LfcnXH3lqIyASCFojkIEJhSwOE/ZduHKVoAGKaVCiFAoKSAw7+ktrXeC6R5JgCkcTQLAQITCTj8J2r2wKUKAAM3V2kECKQXcPinNzXjMYFUVwsAqSTNQ4DAB4HR/jcBHP4fWuyFjgUEgI6bZ+sECJQTcPiXs7bSI4F07wkA6SzNRIDAoAIO/0EbO3lZAsDkHwDlEyDwWMDh/9jHu2UFUq4mAKTUNBcBAkMJOPyHaqdibgQEgBsQTwkQIBACDv9QMNoSSLsbASCtp9kIEBhAwOE/QBOV8FRAAHhK5AICBGYScPjP1O2+ak29WwEgtaj5CBDoVsDh323rbPyEgABwAs0tBAiMJ+DwH6+nY1WUvhoBIL2pGQkQWAn08H8N0OG/apiH0wgIANO0WqEECGwJOPy3VLzWmkCO/QgAOVTNSYBAFwIO/y7aZJOZBASATLCmJUCAAAECaQTyzCIA5HE1KwECjQv49t94g2wvu4AAkJ3YAgQItCbg8G+tI/bzSCDXewJALlnzEiDQpIDDv8m22FQFAQGgArolCRCoI+Dwr+Nu1SsC+e4VAPLZmpkAAQIECDQrIAA02xobI0AgpYBv/yk1zVVKIOc6AkBOXXMTINCEgMO/iTbYRGMCAkBjDbEdAgTSCjj803qaraRA3rUEgLy+ZidAgAABAk0KCABNtsWmCBBIIeDbfwpFc9QSyL2uAJBb2PwECFQRcPhXYbdoRwICQEfNslUCBPYJOPz3ObmqZYH8exMA8htbgQABAgQINCcgADTXEhsiQOCKgG//V/Tc24pAiX0IACWUrUGAQBEBh38RZosMIiAADNJIZRAgQIDAKAJl6hAAyjhbhQCBzAK+/WcGNv1wAgLAcC1VEIH5BBz+8/V85IpL1SYAlJK2DgECBAgQaEhAAGioGbZCgMBxAd/+j5u5o2WBcnsTAMpZW4kAAQIECDQjIAA00wobIUDgqIBv/0fFXN+6QMn9CQAlta1FYEKB7/3k+z/OUbbDP4eqOWcSEABm6rZaCRAgQKBhgbJbEwDKeluNAIEEAr79J0A0xfQCAsD0HwEABAgQINCCQOk9CAClxa1HgMAlAd/+L/G5mcAXAQHgC4UHBAgQIECglkD5dQWA8uZWJEDgpIBv/yfh3EZgQ0AA2EDxEgECBAgQKClQYy0BoIa6NQkQOCzg2/9hMjcQeCggADzk8SYBAgQIEMgtUGd+AaCOu1UJTCGQ6v8KoG//U3xcFFlYQAAoDG45AgQIECCwFqj1WACoJW9dAgR2Cfj2v4vJRQQOCwgAh8ncQIAAAQIEUgnUm0cAqGdvZQIEngj49v8EyNsELggIABfw3EqAAAECBK4I1LxXAKipb20CAwtc/d8A8O1/4A+H0poQEACaaINNECBAgMB8AnUrFgDq+ludAIENAd/+N1C8RCCxgACQGNR0BAgQIEBgj0DtawSA2h2wPgECBAgQqCAgAFRAtySB0QWu/AeAfv0/+qdDfZ8E6v8pANTvgR0QIECAAIHiAgJAcXILEiBwT8C3/3syXh9NoIV6BIAWumAPBAgQIECgsIAAUBjccgQIECAwu0Ab9QsAbfTBLggMI3D2PwD06/9hPgIK6URAAOikUbZJgAABAmMItFKFANBKJ+yDAAECBAgUFBAACmJbigCBbQG//t928eqIAu3UJAC004smdvJn//y7fzIYXPkM/PZXP/3N0fHrn//r3xhlDJr4i8YmmhAQAJpoQ51NbP0lX2cnViVAoJTAVtAqtbZ1Xl5aMhAAWupGgb2sD/0Cy1mCAIEOBNahoIPt2mIiAQEgEWTL0zj0W+6OvRFoS0AYyNmPtuYWANrqR9LdLAd/0klNRoDANAJLGJim4MkKFQAGbLiDf8CmKolARQFBIA1+a7MIAK115MJ+HPwX8NxKgMBTAUHgKVFXFwgAXbVre7MO/m0XrxIgkEdAEDjj2t49AkB7PTm0ozj8D93gYgIECCQSiCCQaCrTVBAQACqgp1rS4Z9K0jwECJwVEAL2ybV4lQDQYlee7CkO/hhPLvM2AQIEighECIhRZDGLJBMQAJJRlpnIwV/G2SoECBwXEALumbX5ugDQZl82d+Xw32TxIgECDQkIAQ0148lWBIAnQK287fBvpRP2QYDAMwEh4L1Qq88EgFY7s9qXw3+F4SEBAl0ICAHtt0kAaLxHDv/GG2R7BAjcFRACgqbdIQC025sXh3/DzbE1AgR2CQgBu5iqXCQAVGF/vqjD/7mRKwgQ6ENg5hDQcocEgJa7Y28ECBAgQCCTgACQCfbKtL79X9FzLwECLQrM+VuAFjvxticB4M2iiUcO/ybaYBMECGQQEAIyoF6YUgC4gJf6Vod/alHzESDQmsBMIaA1+9v9CAC3Ip4TIECAAIEJBASARprs238jjbANAgSyC8zxW4DsjJcXEAAuE5qAAAECBAj0JyAANNAz3/4baIItECBQVGD03wIUxTy5mABwEs5tBAgQIECgZwEBoHL3fPuv3ADLEyBQTWDc3wJUIz20sABwiMvFBAgQIEBgDAEBoGIfffuviG9pAgSaEBjxtwBNwO7YhACwA8klBAgQIEBgNAEBYLSOqocAAQIEKgr0s7QAUKlXfv1fCd6yBAg0J+CfAeq0RACo425VAgQIEBhQoKeSBICeumWvBAgQIEAgkYAAkAjyyDR+/X9Ey7UECMwgMMY/A/TVKQGgr37ZLQECBAgQSCIgACRhNAkBAgQIzC7QW/0CQG8ds18CBAgQIJBAQABIgGgKAgQIEJhdoL/6BYDCPfMfABYGtxwBAt0I+A8By7ZKACjrbTUCBAgQGFCgx5IEgB67Zs8ECBAgQOCigABwEdDtBAgQIDC7QJ/1CwB99s2uCRAgQIDAJQEB4BKfmwkQIEBgdoFe6xcAeu2cfRMgQIAAgQsCAsAFPLcSIECAwOwC/dYvAPTbOzsnQIAAAQKnBQSA03RuJECAAIHZBXquXwDouXv2ToAAAQIETgoIACfh3EaAAAECswv0Xb8A0Hf/7J4AAQIECJwSEABOsbmJAAECBGYX6L1+AaD3Dto/AQIECBA4ISAAnEBzCwECBAjMLtB//QJA/z1UAQECBAgQOCwgABwmcwMBAgQIzC4wQv0CwAhdVAMBAgQIEDgoIAAcBHM5AQIECMwuMEb9AsAYfVQFAQIECBA4JCAAHOJyMQECBAjMLjBK/QLAKJ1UBwECBAgQOCAgABzAcikBAgQIzC4wTv0CdOzvFAAAEABJREFUwDi9VAkBAgQIENgtIADspnIhAQIECMwuMFL9AsBI3VQLAQIECBDYKSAA7IRyGQECBAjMLjBW/QLAWP1UDQECBAgQ2CUgAOxichEBAgQIzC4wWv0CwGgdVQ8BAgQIENghIADsQHIJAQIECMwuMF79AsB4PVURAQIECBB4KiAAPCVyAQECBAjMLjBi/QLAiF1VEwECBAgQeCIgADwB8jYBAgQIzC4wZv0CwJh9VRUBAgQIEHgoIAA85PEmAQIECMwuMGr9AsConVUXAQIECBB4ICAAPMDxFgECBAjMLjBu/QLAuL1VGQECBAgQuCsgANyl8QYBAgQIzC4wcv0CwMjdVRsBAgQIELgjIADcgfEyAQIECMwuMHb9AsDY/VUdAQIECBDYFBAANlm8SIAAAQKzC4xevwAweofVR4AAAQIENgQEgA0ULxEgQIDA7ALj1y8AjN9jFV4Q+M53f/jtZ+PC9MVv/eWPvvHtZ6P4pk4u+Kwv8f7Jqd1GYAoBAWCKNivyqEAcHjH23BfXxdhzba1rlkN/z/pHrt0zX+prwjrGnnnjuhh7rnUNgbXADI8FgBm6rMbdAnFYxNh9w+rCuC/G6qXqD68c5lfuzVF42MY4M3fcF+PMve4hMKqAADBqZ9V1SCAOhxiHbrpzccwT487bRV5OeXinnOtM8WEZ48y9t/fEPDFuX/ecwHuBOZ4JAHP0WZUPBHIdCLnmfVDK61txYL8+SPxHrnkfbTOXYa55H9XiPQKtCQgArXXEfooK5D4Ics9/i5X7kM49/7qe3Ha551/X4nFfArPsVgCYpdPq/CBQ6gAotU6pw7nEOqXMSq3z4cPnBQINCAgADTTBFsoLlP6LP/d6JQ7ldZdyrpfbal1HPC69XqxptCwwz94EgHl6rVICBAgQIPBFQAD4QuHBLAK1vvHlWjfnt/FHn4kc6+YyelRHvFdr3VjbaEtgpt0IADN1W60ECBAgQOCzgADwGcKPOQRqf9NLvX6Ob+FHPgkp109tc6SOuLb2+rEHo7bAXOsLAHP1W7UECBAgQOBVQAB4ZfDHDAKtfMNLtY+U376v9D/FPlKZXKkj7m1lH7EXo7zAbCsKALN1XL0ECBAgQOBrAQHgawT/nwABAgRmF5ivfgFgvp6rmAABAgQIvAgAPgQECBAgML3AjAACwIxdVzMBAgQITC8gAEz/EQBAgACB2QXmrF8AmLPvqiZAgACByQUEgMk/AMonQIDA7AKz1i8AzNr5Cev+9c//7TctlJ1qH3/+L79rop4U+0hlcrW/rezjah3uJ7BHQADYo+QaAgQIEBhUYN6yBIB5ez9l5bW/4aVeP8W37ysfhJTrp7Y5Wlft9Y/u1/UErgoIAFcF3U+AAAEC3QrMvHEBYObuT1p7rW96udZN+S38yEcix7q5jJ7VVWvdZ/vyPoGcAgJATl1zEyBAgEDDAnNvTQCYu//TVl/6G1/u9XJ8G3/04ci5Xm6r27pKr3e7vucEagkIALXkrVtdoNRf/KXWyXkor5tVYp1SZqXWWft53I7A7DsRAGb/BExef+4DIPf8t+3LfTjnnn9dT2673POva/GYQIsCAkCLXbGnogK5DoJc8z7DyXVI55r3UT25DHPN+6gW77UmYD8CgM8Aga8F4kCI8fXDy/8/5olxeaILE8RhHePCFF9ujXlifHmh8IOwjJFi2ZgnRoq5zEGgdwEBoPcO2n9SgTgcYpyZNO6LcebeXPfEwR3jzPxxX4wz9+a4J2xjnJk77otx5l73jCmgqpcXAcCngMCGQBwWMTbe+vBSXBfjwxsNvRAHeYw9W4rrYuy5tsY1YR1jz9pxXYw917qGwGwCAsBsHVfvIYE4PJ6NQxNWvjgO9mej8hZ3L/+sL/H+7slcOJmAckNAAAgFgwABAgQITCYgAEzWcOUSIEBgdgH1fxIQAD45+JMAAQIECEwlIABM1W7FEiBAYHYB9S8CAsAi4ScBAgQIEJhIQACYqNlKJUCAwOwC6n8T+Op7P/n+j9+eekSAAAECBAjMIPD6G4AIATFmKFiNBAgQIDCrgLrXAq8BYHkhQsAyltf8JECAAAECBMYTeBcA1uUtQSB+rl/3mAABAgQI9Chgz+8F7gaA9WURAtZj/Z7HBAgQIECAQH8CuwLAbVnCwK2I5wQIECDQtoDd3QqcCgDrSdZhIB6v3/OYAAECBAgQaFPgcgC4LStCwDJu3/OcAAECBAjUELDmR4HkAWC9xBIE1j/X73tMgAABAgQI1BHIGgC2SlqHgXi8dY3XCBAgQIBAOgEzbQkUDwC3m4gQsDVur/OcAAECBAgQSCdQPQDcK2UrFMRr9673OgECBAgQ2BLw2rZAswFge7svLxEC7o1793idAAECBAgQeC/QXQB4v/33z+4Fg63X39/pGQECBAiMKaCqewJDBYB7RW69vhUKSry2tRevESBAgACB0gLTBoDS0NYjQIAAgfICVrwvIADct/EOAQIECBAYVkAAGLa1CiNAgMDsAup/JCAAPNLxHgECBAgQGFRAABi0scoiQIDA7ALqfywgADz28S4BAgQIEBhSQAAYsq2KIkCAwOwC6n8mIAA8E/I+AQIECBAYUEAAGLCpSiJAgMDsAup/LiAAPDdyBQECBAgQGE5AABiupQoiQIDA7ALq3yMgAOxRcg0BAgQIEBhMQAAYrKHKIUCAwOwC6t8nIADsc3IVAQIECBAYSkAAGKqdiiFAgMDsAurfKyAA7JVyHQECBAgQGEhAABiomUohQIDA7ALq3y8gAOy3ciUBAgQIEBhGQAAYppUKIUCAwOwC6j8iIAAc0XItAQIECBAYREAAGKSRyiBAgMDsAuo/JiAAHPNyNQECBAgQGEJAABiijYogQIDA7ALqPyogABwVcz0BAgQIEBhAQAAYoIlKIECAwOwC6j8uIAAcN3MHAQIECBDoXkAAKNzCb/7pX3278JKWI0CAQBcC3/nu3//nuY2664yAAHBGzT0ECBAgQKBzAQGg8wbaPgECBGYXUP85AQHgnJu7CBAgQIBA1wICQNfts3kCBAjMLqD+swICwFm5C/f5DwEv4LmVAIEhBfwHgOXbKgCUN7ciAQIECCQSMM15AQHgvJ07CRAgQIBAtwICQKXW+WeASvCWJUCgOYHzv/5vrpSuNiQAdNUumyVAgAABAmkEBIA0jmYhQIAAgcIClrsmIABc87t0t38GuMTnZgIEBhDw6/96TRQA6tlbmQABAgROC7jxqoAAcFXw4v1+C3AR0O0ECHQr4Nt/3dYJAHX9rU6AAAECJwTccl1AALhueHkGvwW4TGgCAgQ6E/Dtv37DBID6PbADAgQIEDgk4OIUAgJACsUEc/gtQAJEUxAg0IWAb/9ttEkAaKMPdkGAAAECOwVclkZAAEjjmGQWvwVIwmgSAgQaFvDtv53mCADt9OJ1J0LAK4M/CBAYUCDN4T8gTKWSBIBK8I+WFQIe6XiPAIEeBRz+7XVNAGivJ3ZEgAABAncEvJxOQABIZ5l0Jr8FSMppMgIEKgr49l8R/8HSAsADnNpvCQG1O2B9AgSuCqQ9/K/uxv1rAQFgrdHgYyGgwabYEgECuwQc/ruYql0kAFSj37+wELDfypUECLQhkOPwb6OycXYhAHTSSyGgk0bZJgECLw7/Pj4EAkAffXrdpRDwyuAPAgQaFsh3+DdcdKdbEwA6a5wQ0FnDbJfARAIO/76aLQD01a/X3UYIiPH6xB8ECBCoLBAHf4yc2zB3egEBIL1psRmFgGLUFiJA4I6Ag/8OTAcvCwAdNOnRFoWARzreI0Agp0C5wz9nFfPOLQAM0PsIATEGKEUJBAh0IBAHf4wOtmqLDwQEgAc4vb0VISBGb/u2XwIE+hCIQz9G6d1aL4+AAJDHteqsEQJiVN2ExQkQGEYgDv0YwxSkkFcBAeCVYcw/IgTEGLM6VREgkFsgDv0Yudd5PL93cwkIALlkG5o3QsAyGtqWrRAg0KBAHPjLaHB7tpRI4P//5xc/EAASYfYyzRIE4mcve7ZPAgTyCsTfB60e+nkrn2/2OPhjROUCQChMOuJ/6G/HpBTKJjCNwO3/zMfzKD4OhWXEc2McgaWv8XNdlQCw1vD4Jf4ymGVo93mBWT4jI9a5p+txUCxjz/X5rjHzWYGlf/Hz3hwCwD0Zrw8t8Ntf/fQ3QxeYsbg4FDNOb+rGBOIAidHYtmznjkD0Ksadt9+9LAC84/CEAIF7AnHwx7j3vtfHFohDZT1KVGuN5wLrnsTj53e8XSEAvFl4NImAb//HGh2Hfoxjd7l6dIE4bJYxeq2t1be4x88rexMArui5l8DgAg7+wRucqLw4iNYjzbRmWQTWtvF4ef3qTwHgqqD7uxLw7X9fu+Lgj7HvalcReC8Qh9R6vH/Xs2cCa7t4/Oz6s+8LAGfl3EdgQIE49GMMWJqSKgrEIbYee7Yy0zVrm3hcqnYBoJS0daoL+Pb/uAUO/sc+3k0nEIfc7Ug3e9sz3dYdz2vtWACoJW/dogIO//vccfDHuH+FdwjkF4iD8G384gfrx/lXT7vCeu+3j9OudG02AeCan7sJdCsQh36Mbguw8WkEbg/RreelMLbWvn2t1F6uriMAXBV0f/MCvv1/bJGD/6OJV9oROLOT20M41/Mze2v1HgGg1c7YF4EMAnHwx8gwtSkJEOhMQADorGG2e0zAt/9PXnHox/j0zJ8EWhawt1ICAkApaesQqCTg4K8Eb1kCjQsIAI03yPbOC8z+7T8O/hjnBd1JoLyAFcsJCADlrK1EoIhAHPoxiixmEQIEuhUQALptnY0/Epj127+D/9GnwnvtC9hhSQEBoKS2tQhkEoiDP0am6U1LgMCAAgLAgE2dvaSZvv3HoR9j9p6rfwwBVZQVEADKeluNQDIBB38yShMRmFJAAJiy7eMWPcO3/zj4Y4zbRZXNKaDq0gICQGlx62UTGP3wj0M/RjZAExMgMJWAADBVuxXbq4CDv9fO2fdeAdeVFxAAyptbMYPAqN/+4+CPkYHMlAQITC4gAEz+AVB+mwJx6Mdoc3d2RSC1gPlqCAgANdStmVRgtG//Dv6kHw+TESBwR0AAuAPjZQKlBeLgj1F6XesRqC1g/ToCAkAdd6smEhjh238c+jESkZiGAAECuwQEgF1MLiKQR8DBn8fVrD0J2GstAQGglrx1Lwv0/O0/Dv4YlxFMkF3gt//wvy/GOYPszbHAJQEB4BKfmwkcE4hDP8axu1xdWmB94Jdee6T19jiOVG9vtQgAvXXMfl8Fevz27+B/bV3zf8Sh1fwmO9wg1/aaJgC01xM7GkwgDv4Yg5U1XDlxQMUYrrCGCgrfGG9b8qimgABQU9/apwR6+fYfh36MU0W6qaiAQ6ko9+t/U1F2RattCQgAWypea1agp8O/WUQbeyfg8H/HUexJuBdbzEKbAgLAJosXCZwTiG/8Mc7d7a7SAg6h0uLv1+P/3qP0MwGgtLj1Tgu0/gaFF4cAAArsSURBVO3fwX+6tW6cUkDRtQUEgNodsH73AnHwx+i+kMkK8O2zjYbrQ70+CAD17K18QKDFb/9x6Mc4UIZLGxFw6NRvxHoH+rHWKPdYAChnbaWBBBz8AzVTKQQmFRAAJm18T2W39O0/Dv4YPfnZK4H2BOyoBQEBoIUu2EPzAnHox2h+ozb4VMCvm58SVblAX8qzCwDlza14QKCFb/8O/gMNcymBHQIuaUNAAGijD3bRoEAc/DEa3JotESBA4LKAAHCZ0AS5BGp9+49DP0auusxLYG4B1bciIAC00gn7eCdQ8/B/txFPCBAgMKiAADBoY5V1TCC+8cc4dperCRA4KuD6dgQEgHZ6YSefBUp++49DP8bnpf0gQIDANAICwDStVuitgIP/VsRzArkFzN+SgADQUjfs5aXEt/84+GPgnlPgm//4rTkLb7xqfSnfIAGgvLkVKwnEoR+j0vKWJTC9AIC2BASAtvox9W5yfvt38E/90VI8AQIbAgLABoqXxhGIgz/GOBWpJIWAXzenUDw6x/3r9eO+Tc53BICcuubeLZD6238c+jF2b8CF0wk4dNpouT7U64MAUM/eypkEHPyZYE1L4IKAW9sTEADa68l0O0r17T8O/hjTASr4tIBvn6fpktzIPwnj6UkEgNN0bmxFIA79GK3sxz76EnAIlejXxzW4fzQp/YoAUFrceu8Ern77d/C/4/TkpIDD6CTcydt4n4RLfJsAkBjUdPsFrhz+cfDH2L+aKwk8FohDKcbjq7x7RmC5J3xjLM/9rCsgANT1t/pBgTj0Yxy8zeUEdgs4oHZTHbqQ6yGuIhcLAEWYLXIrcObbv4P/VtHzXAJxWC0j1xozzPvJ8Fsv8XOGenurUQDorWMT7jcO/hgTlq7kBgTi8DI+HeJHHRpony08EPjq//77Z9948L63CCQX2PvtPw79GMk3YEICBIoJWKhdAb8BaLc3U+/MwT91+xVPgEABAQGgALIl3gSeffuPgz/G2x0eESDQr4CdtywgALTcnYn2Fod+jIlKVioBAgSqCggAVfnnWvzet38H/1yfA9XOI6DStgUEgLb7M/Tu4uCPMXSRiiNAgECjAgJAo40ZbVvrb/9x6McYrUb1ECCwFvC4dQEBoPUODbY/B/9gDVUOAQLdCrwGAP+3ALrtXxcbj2//cfDH6GLDNkmAwGUBE7QtEOf+awBoe5t217uAg7/3Dto/AQIjCggAI3ZVTQQIEKgqYPEeBASAHrpkjwQIECBAILGAAJAY1HQECBCYXUD9fQh8CQDxHwT0sWW7JECAAAECBM4KLOf9lwBwdiL3ESBAgACBNwGPehEQAHrplH0SIECAAIGEAgJAQkxTESBAYHYB9fcj8C4ALP8u0M/27ZQAAQIECBDYK7A+598FgL0TuI4AAQIECHwU8EpPAgJAT92yVwIECBAgkEhAAEgEaRoCBAjMLqD+vgQ+BID1vw/0VYrdEiBAgAABAvcEbs/3DwHg3o1eJ0CAAAEC9wW805uAANBbx+yXAAECBAgkENgMALe/JkiwjikIECBAYGABpbUtsHWubwaAtsuwOwIECBAgQOCqgABwVdD9BAgQmF4AQI8CdwPA1q8LeizQngkQIECAwMwC987zuwFgZiy1EyBAgMB+AVf2KSAA9Nk3uyZAgAABApcEHgaAe782uLSimwkQIEBgIAGltCzw6Bx/GABaLsreCBAgQIAAgfMCTwPAo/Rwfll3EiBAgMAIAmpoV+DZ+f00ALRbmp0RIECAAAECZwUEgLNy7iNAgMD0AgB6FtgVAJ79GqFnAHsnQIAAAQKjCew5t3cFgNFg1EOAAAEC1wXM0LfA7gCwJ030TWH3BAgQIECgf4G95/XuANA/iQoIECBAIJ2AmXoXOBQA9qaK3lHsnwABAgQI9Chw5Jw+FAB6xLBnAgQIEEgvYMb+BQ4HgCPpon8eFRAgQIAAgT4Ejp7PhwNAHwx2SYAAAQL5BMw8gsCpAHA0ZYwApQYCBAgQINCqwJlz+VQAaBXAvggQIEAgv4AVxhA4HQDOpI0xyFRBgAABAgTaETh7Hp8OAFH62UXjXoMAAQIEehSw55YErpzDlwJASwj2QoAAAQIECOwXuBwArqSP/dt0JQECBAi0IGAP7QhcPX8vB4B2KOyEAAECBAgQ2CuQJABcTSF7N+s6AgQIEKgpYO1WBFKcu0kCQICk2EzMYxAgQIAAAQL3BVKdt8kCwP2teocAAQIERhBQw1gCSQNAqlQyFrFqCBAgQIBAGoGU52zSABDlpdxczGcQIECAQAsC9lBbIPX5mjwABFDqTcacBgECBAgQmFUgx7maJQDM2iB1EyBAYFQBdY0nkC0A5Egr4/GriAABAgQIPBbIdZ5mCwBRTq5Nx9wGAQIECJQSsE4tgZznaNYAEGA5Nx/zGwQIECBAYESB3Odn9gAwYlPURIAAgZkE1DqmQJEAkDvFjNkaVREgQIDArAIlzs0iASAaWKKYWMcgQIAAgZQC5iotUOq8LBYAArBUUbGWQYAAAQIEehMoeU4WDQDRiJLFxXoGAQIECJwXcGc5gdLnY/EAEJSli4w1DQIECBAg0KpAjXOxSgCIBtQoNtY1CBAgQGCvgOtKCNQ6D6sFgECtVXSsbRAgQIAAgdoCNc/BqgEg4GsWH+sbBAgQILAt4NW8ArXPv+oBIHhrI8QeDAIECBAgUEqghXOviQAQ4C1gxD4MAgQIEAgBI5dAK+ddMwEgoFtBib0YBAgQIEAgtUBL51xTASCgW8KJ/RgECBCYUUDN6QVaO9+aCwBB3hpS7MkgQIAAAQJnBVo815oMAAHcIlbsyyBAgMD4AipMKdDqedZsAAj8VtFibwYBAgQIEHgm0PI51nQACNiW8WJ/BgECBEYTUE8agdbPr+YDQLQhEGPEY4MAAQIECLQsEOdVjJb3GHvrIgDERmP0ABr7NAgQINCvgJ1fEejpnOoqAERTesKN/RoECBAgMIdAb+dTdwEgPkaBHCMeGwQIECCQTsBMxwXiPIpx/M66d3QZABayHsGXvftJgAABAv0L9HwOdR0A4qPTM37s3yBAgEA7AnZyRKD386f7ABDNiibEiMcGAQIECBDIKRDnTYyca5SYe4gAsECN0JClFj8JECBQWsB6zwVGOmeGCgDRumhOjHhsECBAgACBFAJxrsRIMVcrcwwXABbYaFSM5bmfBAgQIPBIwHtbAnGOxNh6r/fXhg0AS2NGbdxSn58ECBAgkEdg9PNj+AAQH4toYox4bBAgQIDARwGvvAnEeRHj7ZUxH00RAJbWRUNjLM/9JECAAAECi0CcDzGW56P/nCoALM2MBsdYnvtJgACBuQXmrj7OgxizKUwZAJYmR8NjLM/9JECAAIF5BOLv/xjzVPy+0qkDwEIRH4AYy3M/CRAgMJPAbLXG3/cxZqv7tl4BYCUSH4hlrF72kAABAgQ6F1j+bo+fnZeSbPsCwB3K+JDEuPO2lwkQIDCIwNhlxN/jMcau8lx1AsATt/jgLOPJpd4mQIAAgQYElr+z42cD22l2CwLAgdbEh2kZB25zKQECBJoVGGVjy9/N8XOUmnLXIQCcFI4P2TJOTuE2AgQIELggsPwdHD8vTDPtrQJAgtbHh289EkxpCgIECBQQ6GuJ9d+z8biv3be3WwEgQ0/ig7keGZYwJQECBIYXWP89Go+HL7hwgQJAAfD44N6OAstaggABAg8FWnrz9u/IeN7S/kbcy+8BAAD///zdmw4AAAAGSURBVAMAqTs76DxcsuIAAAAASUVORK5CYII="
+        alt="私•話 Logo"
+        class="logo">
+        <div class="setup-title">
+          <h1>私•話<br>Pri•Talk</h1>
+          <p></p>
         </div>
-        <p id="identityStatus" class="small-muted">第一次使用先存身份；之後建立邀請與聊天都會自動使用這個名字。</p>
-      </div>
+      </header>
 
-      <div id="friendsPanel" class="friends-panel hidden">
-        <div class="panel-title">好友 / 常用頻道</div>
+      <label class="field-label" for="displayName">我的顯示名稱</label>
+      <input id="displayName" class="text-input" type="text" maxlength="30" autocomplete="nickname" placeholder="例如：Lisa、小藍">
+
+      <div id="friendsPanel" class="panel friends-panel hidden">
+        <div class="panel-title">常用 / 好友</div>
         <div id="friendsList" class="friends-list"></div>
-        <p class="small-muted">好友與密鑰只存在這台裝置。清除網站資料後就會消失。</p>
+        <p class="panel-note">常用只存在這台裝置，不會同步到其他手機，也不會產生聊天紀錄。</p>
       </div>
 
-      <div class="settings-card compact-settings">
+      <div class="panel settings-panel settings-card compact-settings">
         <div class="panel-title">秒數設定</div>
         <div class="settings-list">
-          <label class="mini-field setting-row">
-            <span>離線保留</span>
-            <input id="messageTtlSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="5" max="21600" step="5" value="3600">
-            <em>對方還沒打開前，密封包最多保留幾秒</em>
+          <label class="setting-row">
+            <span>未進房保留</span>
+            <input id="messageTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="60" max="21600" step="300" value="21600">
+            <em>最長 6 小時</em>
           </label>
-
-          <label class="mini-field setting-row">
-            <span>未開封泡泡</span>
-            <input id="sealedBubbleSeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="3" max="300" step="1" value="60">
-            <em>進聊天室後沒按圓點查看，泡泡幾秒消失</em>
+          <label class="setting-row">
+            <span>進房後未開</span>
+            <input id="sealedBubbleSeconds" class="seconds-input" type="number" inputmode="numeric" min="300" max="300" step="1" value="300" readonly>
+            <em>固定 5 分鐘</em>
           </label>
-
-          <label class="mini-field setting-row">
-            <span>按住查看後</span>
-            <input id="displaySeconds" class="text-input seconds-input" type="number" inputmode="numeric" min="1" max="60" step="1" value="5">
-            <em>從第一次按住圓點看內容開始倒數</em>
+          <label class="setting-row">
+            <span>點開後消失</span>
+            <input id="displaySeconds" class="seconds-input" type="number" inputmode="numeric" min="15" max="60" step="5" value="20">
+            <em>雙方同步</em>
+          </label>
+          <label class="setting-row">
+            <span>邀請有效</span>
+            <input id="inviteTtlSeconds" class="seconds-input" type="number" inputmode="numeric" min="30" max="21600" step="10" value="1800">
+            <em>預設 30 分鐘</em>
           </label>
         </div>
-        <p class="small-muted">訊息預設模糊。按住泡泡下方圓點才顯示，放開立刻模糊。</p>
+        <p class="panel-note">建立邀請時會同步閱後秒數；未讀進房後會顯示成一顆一顆的水滴。</p>
       </div>
 
-      <label class="field-label" for="creatorFriendName">這位好友名稱</label>
-      <input id="creatorFriendName" class="text-input" type="text" maxlength="40" placeholder="例如：Lisa、小藍">
-
-      <div class="button-row">
-        <button id="createInviteBtn" class="primary-btn" type="button">建立加好友連結</button>
-        <button id="healthBtn" class="ghost-btn" type="button">測試連線</button>
+      <div class="main-actions button-row">
+        <button id="createInviteBtn" class="primary-btn" type="button">建立專屬對話</button>
+        <button id="healthBtn" class="soft-btn ghost-btn" type="button">測試後端</button>
       </div>
 
-      <div id="invitePanel" class="invite-panel hidden">
-        <div class="panel-title">邀請連結</div>
-        <textarea id="inviteLink" readonly></textarea>
-        <div class="button-row">
-          <button id="copyInviteBtn" class="primary-btn" type="button">複製連結給對方</button>
-          <button id="openChatBtn" class="ghost-btn" type="button">進入對話</button>
+      <div id="invitePanel" class="panel invite-panel hidden">
+        <div class="panel-title">分享專屬對話</div>
+        <textarea id="inviteLink" class="invite-link-storage" readonly aria-label="邀請連結"></textarea>
+
+        <div id="inviteCodeCard" class="invite-code-card hidden">
+          <div class="invite-code-label">推薦碼 / 邀請碼</div>
+          <div class="invite-code-box">
+            <div id="inviteCodeValue" class="invite-code-value">尚未建立</div>
+            <button id="copyInviteCodeBtn" class="copy-code-btn" type="button">複製碼</button>
+          </div>
+          <p class="panel-note">這組碼只用來核對邀請是否一致。</p>
         </div>
-        <p class="small-muted">一定要包含 #angkey。這段是解鎖密鑰，只在手機端使用。</p>
+
+        <div class="main-actions compact-actions button-row">
+          <button id="copyInviteBtn" class="primary-btn share-invite-btn" type="button">手機分享</button>
+          <button id="openChatBtn" class="soft-btn ghost-btn" type="button">進入對話</button>
+        </div>
+        <p class="panel-note">按「手機分享」可直接選 LINE、訊息或其他 App；一次性邀請被接受後會立即失效。</p>
       </div>
     </section>
 
-    <section class="hero-card hidden" id="acceptView">
-      <div class="brand-pill">Secure Join</div>
-      <h1>偵測到專屬密鑰</h1>
-      <p class="muted">這條連結包含 #angkey。本機會用它推導雙向頻道，後端不會收到密鑰。</p>
-
-      <div class="identity-card">
-        <div class="panel-title">我的固定身份</div>
-        <div class="identity-row">
-          <input id="guestName" class="text-input" type="text" maxlength="30" placeholder="例如：Lisa、小藍">
-          <button id="saveGuestIdentityBtn" class="ghost-btn" type="button">儲存</button>
+    <section class="setup-card hidden" id="acceptView">
+      <div class="version-proof">TOUCH FIX 4.4.4</div>
+      <header class="setup-head">
+        <div class="logo-mark" aria-hidden="true">邀請</div>
+        <div>
+          <h1>正在加入私•話</h1>
+          <p>完整邀請連結會帶有 #angkey，本機會用它解開密封訊息。</p>
         </div>
-        <p class="small-muted">接受後會用這個身份聊天，也會把這個頻道加入好友。</p>
-      </div>
-
-      <label class="field-label" for="guestFriendName">這位好友名稱</label>
-      <input id="guestFriendName" class="text-input" type="text" maxlength="40" placeholder="例如：Lisa、小藍">
-
-      <button id="acceptInviteBtn" class="primary-btn wide" type="button">解鎖並加入好友</button>
+      </header>
+      <label class="field-label" for="guestName">我的顯示名稱</label>
+      <input id="guestName" class="text-input" type="text" maxlength="30" autocomplete="nickname" placeholder="例如：Lisa、小藍">
+      <button id="acceptInviteBtn" class="primary-btn full-btn wide" type="button">接受密封邀請並加入</button>
     </section>
 
     <section class="chat-card hidden" id="chatView">
       <header class="chat-header">
         <div>
-          <div class="brand-pill small">專屬私•話</div>
-          <h2 id="chatTitle">已建立密封對話</h2>
-          <p id="chatSub" class="small-muted">後端只暫存 ANG 亂碼包；讀取時同步刪除。訊息預設模糊，按住才顯示。</p>
-          <div id="unreadBadge" class="unread-pill">無未讀</div>
+          <div class="brand-pill small">私•話</div>
+          <h2 id="chatTitle">密封對話</h2>
+          <p id="chatSub" class="small-muted">未進房加密等待｜進房後未開 5 分鐘｜點開後限時消失。</p>
         </div>
         <div class="header-actions">
           <button id="enableNotifyBtn" class="icon-btn" type="button">通知</button>
-          <button id="readUnreadBtn" class="icon-btn" type="button">收訊</button>
-          <button id="clearNowBtn" class="icon-btn danger-soft" type="button">淨空</button>
+          <button id="clearNowBtn" class="icon-btn danger-soft" type="button">立即刪</button>
           <button id="saveFriendBtn" class="icon-btn" type="button">加常用</button>
-          <button id="resetBtn" class="icon-btn" type="button">離開</button>
+          <button id="resetBtn" class="icon-btn" type="button">重置</button>
         </div>
       </header>
 
       <div id="installBox" class="install-box hidden">
-        <strong>安裝為獨立 App</strong>
-        <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟。</p>
-        <div class="button-row">
-          <button id="installBtn" class="primary-btn" type="button">安裝 / 加入主畫面</button>
+        <div>
+          <strong>可以加入主畫面</strong>
+          <p id="installText">加入主畫面後，下次可以像 App 一樣直接開啟這個對話。</p>
+        </div>
+        <div class="install-actions button-row">
+          <button id="installBtn" class="primary-btn" type="button">安裝</button>
           <button id="dismissInstallBtn" class="ghost-btn" type="button">稍後</button>
         </div>
       </div>
 
-      <div id="chatBox" class="chat-box"></div>
+      <div class="unread-dock" id="unreadDock" aria-live="polite">
+        <div class="unread-dock-copy">
+          <span class="unread-drop" aria-hidden="true"></span>
+          <div>
+            <strong>未讀訊息</strong>
+            <div id="unreadBadge" class="unread-pill">無未讀</div>
+          </div>
+        </div>
+        <button id="readUnreadBtn" class="unread-read-btn" type="button">查看未讀</button>
+      </div>
 
+      <div id="chatBox" class="chat-box"></div>
       <form id="messageForm" class="composer">
-        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入訊息...">
-        <button type="submit">送出</button>
+        <input id="photoInput" type="file" accept="image/*" hidden>
+        <button id="photoBtn" class="photo-btn" type="button">照片</button>
+        <input id="messageInput" type="text" maxlength="1000" autocomplete="off" placeholder="輸入私•話...">
+        <button class="send-btn" type="submit">送出</button>
       </form>
     </section>
 
-    <div id="statusBar" class="status-bar">準備就緒</div>
+    <div id="statusBar" class="status-bar" role="status" aria-live="polite">準備好了</div>
   </main>
 
-  <div class="privacy-cover" aria-hidden="true">已遮蔽</div>
-  <script src="/app.js"></script>
+  <script>
+    (() => {
+      let chatAssetsLoaded = false;
+
+      function loadChatAssets() {
+        const chat = document.getElementById('chatView');
+        const active = Boolean(chat && !chat.classList.contains('hidden'));
+        document.body.classList.toggle('chat-active', active);
+        if (!active || chatAssetsLoaded) return;
+        chatAssetsLoaded = true;
+
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = './layout-addon.css';
+        document.head.appendChild(css);
+
+        const room = document.createElement('script');
+        room.src = './room-addon.js';
+        room.onload = () => {
+          const call = document.createElement('script');
+          call.src = './call-addon.js';
+          document.body.appendChild(call);
+        };
+        document.body.appendChild(room);
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const chat = document.getElementById('chatView');
+        if (chat) {
+          new MutationObserver(loadChatAssets).observe(chat, {
+            attributes: true,
+            attributeFilter: ['class']
+          });
+        }
+        loadChatAssets();
+      }, { once: true });
+    })();
+  </script>
+
+  <script src="./app.js"></script>
+  <script src="./invite-addon.js"></script>
+
+<script>
+/* ===== ANG FIX：鍵盤上來不改版面高度 ===== */
+(() => {
+  const root = document.documentElement;
+  let lockedHeight = 0;
+
+  function isTypingTarget(el){
+    return !!(el && el.matches && el.matches('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  function setAppHeight(force=false){
+    if (!force && isTypingTarget(document.activeElement)) return;
+    const h = Math.round(window.innerHeight || document.documentElement.clientHeight || 0);
+    if (!h) return;
+    lockedHeight = h;
+    root.style.setProperty('--app-height', h + 'px');
+  }
+
+  setAppHeight(true);
+
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => setAppHeight(true), 350);
+  }, { passive:true });
+
+  window.addEventListener('resize', () => {
+    if (!isTypingTarget(document.activeElement)) setAppHeight(true);
+  }, { passive:true });
+
+  document.addEventListener('focusin', (e) => {
+    if (!isTypingTarget(e.target)) return;
+    if (lockedHeight) root.style.setProperty('--app-height', lockedHeight + 'px');
+    document.body.classList.add('keyboard-stable');
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+      const shell = document.querySelector('.app-shell');
+      if (shell) shell.scrollTop = 0;
+    }, 60);
+  }, true);
+
+  document.addEventListener('focusout', () => {
+    document.body.classList.remove('keyboard-stable');
+    setTimeout(() => setAppHeight(true), 220);
+  }, true);
+})();
+</script>
+
+
+<script>
+/* ===== ANG FIX：從邀請連結自動顯示推薦碼 / 邀請碼 ===== */
+(() => {
+  const linkEl = document.getElementById('inviteLink');
+  const card = document.getElementById('inviteCodeCard');
+  const valueEl = document.getElementById('inviteCodeValue');
+  const copyBtn = document.getElementById('copyInviteCodeBtn');
+
+  function extractInviteCode(raw){
+    const v = String(raw || '').trim();
+    if (!v) return '';
+
+    const hashMatch = v.match(/#angkey=([^&\s]+)/i);
+    if (hashMatch) return decodeURIComponent(hashMatch[1]);
+
+    const qMatch = v.match(/[?&](?:angkey|invite|code|ref)=([^&\s]+)/i);
+    if (qMatch) return decodeURIComponent(qMatch[1]);
+
+    return '';
+  }
+
+  function syncInviteCode(){
+    if (!linkEl || !card || !valueEl) return;
+    const code = extractInviteCode(linkEl.value);
+    if (code) {
+      valueEl.textContent = code;
+      card.classList.remove('hidden');
+    } else {
+      valueEl.textContent = '尚未建立';
+      card.classList.add('hidden');
+    }
+  }
+
+  if (linkEl) {
+    linkEl.addEventListener('input', syncInviteCode);
+    linkEl.addEventListener('change', syncInviteCode);
+
+    const obs = new MutationObserver(syncInviteCode);
+    obs.observe(linkEl, { attributes: true, childList: true, characterData: true, subtree: true });
+
+    const originalValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+    if (originalValue && originalValue.set && !linkEl.__angInviteCodeHooked) {
+      linkEl.__angInviteCodeHooked = true;
+      Object.defineProperty(linkEl, 'value', {
+        get(){ return originalValue.get.call(this); },
+        set(v){
+          originalValue.set.call(this, v);
+          setTimeout(syncInviteCode, 0);
+        }
+      });
+    }
+
+    setInterval(syncInviteCode, 800);
+    syncInviteCode();
+  }
+
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      const code = valueEl ? valueEl.textContent.trim() : '';
+      if (!code || code === '尚未建立') return;
+      try {
+        await navigator.clipboard.writeText(code);
+        const old = copyBtn.textContent;
+        copyBtn.textContent = '已複製';
+        setTimeout(() => copyBtn.textContent = old, 900);
+      } catch (err) {
+        const old = copyBtn.textContent;
+        copyBtn.textContent = '複製失敗';
+        setTimeout(() => copyBtn.textContent = old, 900);
+      }
+    });
+  }
+})();
+</script>
+
+
+<script>
+/* ===== ANG FIX：手機分享邀請連結（不重複顯示長網址） ===== */
+(() => {
+  const shareBtn = document.getElementById('copyInviteBtn');
+  const linkEl = document.getElementById('inviteLink');
+  const statusBar = document.getElementById('statusBar');
+
+  function setShareStatus(message){
+    if (statusBar) statusBar.textContent = message;
+    if (!shareBtn) return;
+    const original = '手機分享';
+    shareBtn.textContent = message;
+    setTimeout(() => {
+      if (shareBtn) shareBtn.textContent = original;
+    }, 1100);
+  }
+
+  async function shareInvite(event){
+    if (!shareBtn || !linkEl) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const url = String(linkEl.value || '').trim();
+    if (!url) {
+      setShareStatus('尚未建立連結');
+      return;
+    }
+
+    const data = {
+      title: 'ANG 私•話 Pri.talk',
+      text: '這是我的私•話一次性邀請連結：',
+      url
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+        setShareStatus('已開啟分享');
+        return;
+      }
+
+      await navigator.clipboard.writeText(url);
+      setShareStatus('連結已複製');
+    } catch (error) {
+      if (error && error.name === 'AbortError') {
+        setShareStatus('已取消分享');
+        return;
+      }
+
+      try {
+        linkEl.classList.remove('invite-link-storage');
+        linkEl.focus();
+        linkEl.select();
+        document.execCommand('copy');
+        linkEl.classList.add('invite-link-storage');
+        setShareStatus('連結已複製');
+      } catch (_) {
+        linkEl.classList.add('invite-link-storage');
+        setShareStatus('分享失敗');
+      }
+    }
+  }
+
+  if (shareBtn) {
+    shareBtn.addEventListener('click', shareInvite, true);
+  }
+})();
+</script>
+
 </body>
 </html>

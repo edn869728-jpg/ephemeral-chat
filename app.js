@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const SESSION_KEY = 'ephemeral_chat_v41_session';
 const INSTALL_DISMISSED_KEY = 'ephemeral_chat_v41_install_dismissed';
 const LOCAL_SETTINGS_KEY = 'ephemeral_chat_v41_settings';
@@ -5,11 +6,24 @@ const FRIENDS_KEY = 'ephemeral_chat_v41_friends';
 const NOTIFY_PREF_KEY = 'ephemeral_chat_v41_notify_enabled';
 const LAST_UNREAD_KEY = 'ephemeral_chat_v41_last_unread';
 const PROFILE_KEY = 'ephemeral_chat_v41_profile';
+=======
+const SESSION_KEY = 'sihua_v41_session';
+const IDENTITY_KEY = 'sihua_v41_identity';
+const INSTALL_DISMISSED_KEY = 'sihua_v41_install_dismissed';
+const LOCAL_SETTINGS_KEY = 'sihua_v41_settings';
+const FRIENDS_KEY = 'sihua_v41_friends';
+const NOTIFY_PREF_KEY = 'sihua_v41_notify_enabled';
+const LAST_UNREAD_KEY = 'sihua_v41_last_unread';
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 
 const DEFAULT_SETTINGS = {
   displaySeconds: 5,
   sealedBubbleSeconds: 60,
+<<<<<<< HEAD
   messageTtlSeconds: 3600
+=======
+  messageTtlSeconds: 20
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 };
 
 const LIMITS = {
@@ -65,6 +79,7 @@ window.addEventListener('beforeinstallprompt', (event) => {
 async function init() {
   registerServiceWorker();
   bindEvents();
+  loadIdentityIntoInputs();
   loadSettingsIntoForm();
   loadProfileIntoForm();
   renderFriendsList();
@@ -78,6 +93,7 @@ async function init() {
   }
 
   if (session) {
+    if (inviteKey && session.sealedKey === inviteKey) goCleanBaseUrl();
     enterChat();
     return;
   }
@@ -86,6 +102,7 @@ async function init() {
 }
 
 function bindEvents() {
+<<<<<<< HEAD
   $('createInviteBtn').addEventListener('click', createInvite);
   $('copyInviteBtn').addEventListener('click', copyInvite);
   $('openChatBtn').addEventListener('click', enterChat);
@@ -110,10 +127,23 @@ function bindEvents() {
   if (saveFriendBtn) saveFriendBtn.addEventListener('click', saveCurrentAsFriend);
 
   $('dismissInstallBtn').addEventListener('click', () => {
+=======
+  on('createInviteBtn', 'click', createInvite);
+  on('copyInviteBtn', 'click', copyInvite);
+  on('openChatBtn', 'click', enterChat);
+  on('acceptInviteBtn', 'click', acceptInvite);
+  on('healthBtn', 'click', healthCheck);
+  on('clearNowBtn', 'click', clearVisibleMessages);
+  on('enableNotifyBtn', 'click', enableNotifications);
+  on('readUnreadBtn', 'click', () => readAndDeleteNow(true));
+  on('saveFriendBtn', 'click', saveCurrentAsFriend);
+  on('resetBtn', 'click', resetSession);
+  on('dismissInstallBtn', 'click', () => {
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
-    installBox.classList.add('hidden');
+    if (installBox) installBox.classList.add('hidden');
   });
-  installBtn.addEventListener('click', installPwa);
+  if (installBtn) installBtn.addEventListener('click', installPwa);
 
   ['displaySeconds', 'sealedBubbleSeconds', 'messageTtlSeconds'].forEach((id) => {
     const el = $(id);
@@ -130,10 +160,18 @@ function bindEvents() {
     });
   });
 
-  $('messageForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    await sendMessage();
-  });
+  const form = $('messageForm');
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await sendMessage();
+    });
+  }
+}
+
+function on(id, eventName, handler) {
+  const el = $(id);
+  if (el) el.addEventListener(eventName, handler);
 }
 
 function getAppBaseUrl() {
@@ -148,6 +186,7 @@ function goCleanBaseUrl() {
 }
 
 function showSetupView() {
+<<<<<<< HEAD
   setupView.classList.remove('hidden');
   acceptView.classList.add('hidden');
   chatView.classList.add('hidden');
@@ -176,6 +215,32 @@ async function createInvite() {
 
   try {
     const masterKey = makeSealedKey();
+=======
+  if (setupView) setupView.classList.remove('hidden');
+  if (acceptView) acceptView.classList.add('hidden');
+  if (chatView) chatView.classList.add('hidden');
+  setStatus('建立加好友連結後，對方點開就能加入私•話。');
+}
+
+function showAcceptView() {
+  if (setupView) setupView.classList.add('hidden');
+  if (acceptView) acceptView.classList.remove('hidden');
+  if (chatView) chatView.classList.add('hidden');
+  setStatus(getInviteKeyFromHash() ? '偵測到私•話密鑰，請確認身份後加入。' : '連結缺少 #angkey，無法加入。');
+}
+
+async function createInvite() {
+  const button = $('createInviteBtn');
+  const label = getIdentityFromInputs('我');
+  const settings = getSettingsFromForm();
+  saveIdentity(label);
+  saveLocalSettings(settings);
+  setBusy(button, true, '建立中...');
+
+  try {
+    const masterKey = makeSealedKey();
+    await importAesKey(masterKey);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     const creatorChannel = await deriveChannelId(masterKey, 'creator');
     const guestChannel = await deriveChannelId(masterKey, 'guest');
 
@@ -195,6 +260,7 @@ async function createInvite() {
 
     const url = new URL(getAppBaseUrl());
     url.hash = `angkey=${encodeURIComponent(masterKey)}`;
+<<<<<<< HEAD
     inviteLink.value = url.toString();
     invitePanel.classList.remove('hidden');
 
@@ -203,10 +269,21 @@ async function createInvite() {
     setStatus('建立失敗：' + (err.message || String(err)));
   } finally {
     setBusy($('createInviteBtn'), false, '建立加好友連結');
+=======
+    if (inviteLink) inviteLink.value = url.toString();
+    if (invitePanel) invitePanel.classList.remove('hidden');
+
+    setStatus('加好友連結已建立。請複製完整網址，包含 #angkey。');
+  } catch (err) {
+    setStatus(err.message || '建立失敗');
+  } finally {
+    setBusy(button, false, '建立加好友連結');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 }
 
 async function acceptInvite() {
+<<<<<<< HEAD
   const inviteKey = getInviteKeyFromHash();
   const label = getIdentityLabel('guestName');
   const friendName = $('guestFriendName') && $('guestFriendName').value.trim()
@@ -219,6 +296,19 @@ async function acceptInvite() {
   }
 
   setBusy($('acceptInviteBtn'), true, '解鎖中...');
+=======
+  const button = $('acceptInviteBtn');
+  const inviteKey = getInviteKeyFromHash();
+  const label = getIdentityFromInputs('我');
+
+  if (!inviteKey) {
+    setStatus('找不到 #angkey，請對方重新複製完整連結。');
+    return;
+  }
+
+  saveIdentity(label);
+  setBusy(button, true, '加入中...');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 
   try {
     await importAesKey(inviteKey);
@@ -237,6 +327,7 @@ async function acceptInvite() {
 
     saveProfile({ label });
     saveSession(session);
+<<<<<<< HEAD
     saveFriendRecord(friendName, session, false);
     renderFriendsList();
 
@@ -247,18 +338,36 @@ async function acceptInvite() {
     setStatus('密鑰無效或格式錯誤。');
   } finally {
     setBusy($('acceptInviteBtn'), false, '解鎖並加入好友');
+=======
+    goCleanBaseUrl();
+    enterChat();
+    addMessage('system', '系統', '你已加入這個私•話。');
+  } catch (err) {
+    setStatus('密鑰無效或加入失敗。');
+  } finally {
+    setBusy(button, false, '解鎖並加入');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 }
 
 async function healthCheck() {
-  setBusy($('healthBtn'), true, '測試中...');
+  const button = $('healthBtn');
+  setBusy(button, true, '測試中...');
   try {
     const data = await api('health', {});
+<<<<<<< HEAD
     setStatus(data.ok ? `後端正常：${data.version || 'OK'}` : (data.error || '後端異常'));
+=======
+    setStatus(data.ok ? `連線正常：${data.version || 'OK'}` : (data.error || '後端異常'));
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   } catch (err) {
-    setStatus(err.message || '後端測試失敗');
+    setStatus(err.message || '測試失敗');
   } finally {
+<<<<<<< HEAD
     setBusy($('healthBtn'), false, '測試連線');
+=======
+    setBusy(button, false, '測試連線');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 }
 
@@ -271,10 +380,11 @@ function enterChat() {
   session = normalizeSessionSettings(session);
   saveSession(session);
 
-  setupView.classList.add('hidden');
-  acceptView.classList.add('hidden');
-  chatView.classList.remove('hidden');
+  if (setupView) setupView.classList.add('hidden');
+  if (acceptView) acceptView.classList.add('hidden');
+  if (chatView) chatView.classList.remove('hidden');
 
+<<<<<<< HEAD
   $('chatTitle').textContent = session.role === 'creator' ? '密封對話｜我建立的' : '密封對話｜已加入';
   updateChatSub();
   updateNotifyButton();
@@ -291,6 +401,20 @@ function updateChatSub() {
   const friendName = findFriendNameBySession(session);
   const settings = getActiveSettings();
   $('chatSub').textContent = `${friendName ? '好友：' + friendName + '｜' : ''}離線保留 ${formatSeconds(settings.messageTtlSeconds)}｜按圓點查看 ${settings.displaySeconds} 秒`;
+=======
+  const friendName = findFriendNameBySession(session);
+  const title = $('chatTitle');
+  const sub = $('chatSub');
+  if (title) title.textContent = friendName || '私•話';
+  if (sub) sub.textContent = `${session.label || '我'}｜端到端加密｜GAS 只存 ANG1 密封包`;
+
+  updateNotifyButton();
+  updateUnreadBadge(loadLastUnread());
+  setStatus('私•話已啟用。訊息會在讀取時從後端刪除。');
+  startPolling();
+  maybeShowInstallBox();
+  if (messageInput) messageInput.focus();
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 function startPolling() {
@@ -306,9 +430,13 @@ async function checkUnreadAndMaybeRead(forceReadWhenVisible) {
     const data = await api('unreadCount', { myChannel: session.myChannel });
     const unread = Math.max(0, Number(data.unread || 0));
 
+<<<<<<< HEAD
     updateUnreadBadge(unread);
     if (unread > lastUnreadCount) showUnreadNotification(unread);
 
+=======
+    if (unread > lastUnreadCount) showUnreadNotification(unread);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     lastUnreadCount = unread;
     saveLastUnread(unread);
 
@@ -316,7 +444,11 @@ async function checkUnreadAndMaybeRead(forceReadWhenVisible) {
     const shouldRead = unread > 0 && chatIsOpen && !document.hidden && (forceReadWhenVisible || document.hasFocus());
     if (shouldRead) setTimeout(() => readAndDeleteNow(false), ACTIVE_READ_DELAY_MS);
   } catch (err) {
+<<<<<<< HEAD
     // 背景輪詢失敗不打擾畫面。
+=======
+    // Quiet while polling to avoid noisy UI.
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 }
 
@@ -324,8 +456,13 @@ async function readAndDeleteNow(manual) {
   if (!session || !session.myChannel || readInFlight) return;
   readInFlight = true;
 
+<<<<<<< HEAD
   const btn = $('readUnreadBtn');
   if (manual && btn) setBusy(btn, true, '收取中');
+=======
+  const button = $('readUnreadBtn');
+  if (manual) setBusy(button, true, '讀取中');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 
   try {
     const data = await api('readAndDeleteSealed', { myChannel: session.myChannel });
@@ -335,7 +472,11 @@ async function readAndDeleteNow(manual) {
       updateUnreadBadge(0);
       lastUnreadCount = 0;
       saveLastUnread(0);
+<<<<<<< HEAD
       if (manual) setStatus('目前沒有新密封包。');
+=======
+      if (manual) setStatus('目前沒有未讀。');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
       return;
     }
 
@@ -344,35 +485,46 @@ async function readAndDeleteNow(manual) {
         const message = await decryptAngPacket(item.packet, session.sealedKey);
         addMessage(message.system ? 'system' : 'other', message.sender || '對方', message.text || '');
       } catch (err) {
+<<<<<<< HEAD
         addMessage('system', '系統', '收到一則無法解密的封包。');
+=======
+        addMessage('system', '系統', '收到一則無法解密的密封包。');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
       }
     }
 
     updateUnreadBadge(0);
     lastUnreadCount = 0;
     saveLastUnread(0);
+<<<<<<< HEAD
     setStatus(`已收取並銷毀 ${packets.length} 則密封包。`);
+=======
+    setStatus(`已讀取並銷毀 ${packets.length} 則密封包。`);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   } catch (err) {
     if (manual) setStatus(err.message || '收取失敗');
   } finally {
     readInFlight = false;
+<<<<<<< HEAD
     if (manual && btn) setBusy(btn, false, '收訊');
+=======
+    if (manual) setBusy(button, false, '強制讀取');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 }
 
 async function sendMessage() {
   if (!session || !session.peerChannel || !session.sealedKey) {
-    setStatus('尚未建立密封對話。');
+    setStatus('尚未建立私•話。');
     return;
   }
 
-  const text = messageInput.value.trim();
+  const text = messageInput ? messageInput.value.trim() : '';
   if (!text) return;
 
   const settings = getActiveSettings();
   const sender = session.label || '我';
-
-  messageInput.value = '';
+  if (messageInput) messageInput.value = '';
   addMessage('mine', '我', text);
 
   try {
@@ -382,14 +534,19 @@ async function sendMessage() {
       packet,
       messageTtlSeconds: settings.messageTtlSeconds
     });
+<<<<<<< HEAD
     setStatus('ANG1 密封包已送出。');
+=======
+    setStatus('已送出 ANG1 密封包。');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   } catch (err) {
-    setStatus(err.message || '發送失敗');
-    addMessage('system', '系統', '剛剛那則可能沒有送出去。');
+    setStatus(err.message || '送出失敗');
+    addMessage('system', '系統', '剛剛那則可能沒有送出。');
   }
 }
 
 function addMessage(type, sender, text) {
+  if (!chatBox) return;
   const settings = getActiveSettings();
   const isPeekMessage = type === 'other';
 
@@ -407,9 +564,14 @@ function addMessage(type, sender, text) {
   const textEl = document.createElement('span');
   textEl.className = 'msg-text';
   textEl.textContent = text;
+  if (isPeekMessage) {
+    textEl.style.filter = 'blur(8px)';
+    textEl.style.userSelect = 'none';
+  }
   div.appendChild(textEl);
 
   let hintEl = null;
+<<<<<<< HEAD
   let peekDot = null;
 
   if (isPeekMessage) {
@@ -424,13 +586,41 @@ function addMessage(type, sender, text) {
     peekDot.setAttribute('aria-label', '按住查看密封訊息');
     peekDot.title = '按住查看，放開模糊';
     div.appendChild(peekDot);
+=======
+  let dotBtn = null;
+  if (isPeekMessage) {
+    hintEl = document.createElement('span');
+    hintEl.className = 'peek-hint';
+    hintEl.textContent = `按住下方圓點查看｜${settings.sealedBubbleSeconds} 秒後消失`;
+    div.appendChild(hintEl);
+
+    dotBtn = document.createElement('button');
+    dotBtn.type = 'button';
+    dotBtn.className = 'peek-dot';
+    dotBtn.textContent = '•';
+    dotBtn.setAttribute('aria-label', '按住查看訊息');
+    dotBtn.style.display = 'block';
+    dotBtn.style.margin = '8px auto 0';
+    dotBtn.style.width = '34px';
+    dotBtn.style.height = '34px';
+    dotBtn.style.borderRadius = '999px';
+    dotBtn.style.border = '0';
+    dotBtn.style.fontSize = '28px';
+    dotBtn.style.lineHeight = '18px';
+    dotBtn.style.color = '#fff';
+    dotBtn.style.background = '#d95f00';
+    div.appendChild(dotBtn);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
   deleteBtn.className = 'msg-delete';
   deleteBtn.textContent = '立即刪';
+<<<<<<< HEAD
   deleteBtn.title = '立即從畫面刪除';
+=======
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   div.appendChild(deleteBtn);
 
   let timer = null;
@@ -450,9 +640,14 @@ function addMessage(type, sender, text) {
       if (event) event.preventDefault();
       if (!div.isConnected) return;
       div.classList.add('revealed');
+      textEl.style.filter = 'none';
+      textEl.style.userSelect = 'text';
       if (senderEl) senderEl.textContent = sender || '對方';
       if (hintEl) hintEl.textContent = `查看中｜${settings.displaySeconds} 秒後刪除`;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
       if (!opened) {
         opened = true;
         if (timer) clearTimeout(timer);
@@ -463,7 +658,10 @@ function addMessage(type, sender, text) {
     const hide = () => {
       if (!div.isConnected) return;
       div.classList.remove('revealed');
+      textEl.style.filter = 'blur(8px)';
+      textEl.style.userSelect = 'none';
       if (senderEl) senderEl.textContent = '密封訊息';
+<<<<<<< HEAD
       if (hintEl) hintEl.textContent = opened ? '已開封倒數中｜按住圓點可再次查看' : `按住下方圓點查看｜未開封 ${settings.sealedBubbleSeconds} 秒後消失`;
     };
 
@@ -473,6 +671,17 @@ function addMessage(type, sender, text) {
     peekDot.addEventListener('pointerleave', hide);
     peekDot.addEventListener('touchstart', reveal, { passive: false });
     peekDot.addEventListener('touchend', hide);
+=======
+      if (hintEl) hintEl.textContent = opened ? '已開封倒數中｜按住圓點可再次查看' : `按住下方圓點查看｜${settings.sealedBubbleSeconds} 秒後消失`;
+    };
+
+    if (dotBtn) {
+      dotBtn.addEventListener('pointerdown', reveal);
+      dotBtn.addEventListener('pointerup', hide);
+      dotBtn.addEventListener('pointercancel', hide);
+      dotBtn.addEventListener('pointerleave', hide);
+    }
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     window.addEventListener('blur', hide);
   } else if (type !== 'system') {
     div.style.setProperty('--vanish-ms', `${openedLifetimeMs}ms`);
@@ -490,12 +699,15 @@ function addMessage(type, sender, text) {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
+<<<<<<< HEAD
 function hideAllPeekMessages() {
   document.querySelectorAll('.msg.peek.revealed').forEach((node) => node.classList.remove('revealed'));
 }
 
+=======
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 function clearVisibleMessages() {
-  chatBox.replaceChildren();
+  if (chatBox) chatBox.replaceChildren();
   updateUnreadBadge(0);
   saveLastUnread(0);
   lastUnreadCount = 0;
@@ -525,17 +737,28 @@ async function api(action, payload) {
 }
 
 async function copyInvite() {
-  const text = inviteLink.value.trim();
+  const text = inviteLink ? inviteLink.value.trim() : '';
   if (!text) return;
 
   try {
     await navigator.clipboard.writeText(text);
+<<<<<<< HEAD
     setStatus('邀請連結已複製。請確認包含 #angkey。');
   } catch (err) {
     inviteLink.focus();
     inviteLink.select();
     document.execCommand('copy');
     setStatus('邀請連結已選取，可手動複製。');
+=======
+    setStatus('加好友連結已複製。一定要包含 #angkey。');
+  } catch (err) {
+    if (inviteLink) {
+      inviteLink.focus();
+      inviteLink.select();
+      document.execCommand('copy');
+    }
+    setStatus('連結已選取，請手動複製。');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   }
 }
 
@@ -546,13 +769,35 @@ function getInviteKeyFromHash() {
   return params.get('angkey') || params.get('key') || '';
 }
 
+function getAppBaseUrl() {
+  const url = new URL('./', location.href);
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function goCleanBaseUrl() {
+  history.replaceState({}, '', getAppBaseUrl());
+}
+
 function updateUnreadBadge(count) {
   const unread = Math.max(0, Number(count || 0));
+<<<<<<< HEAD
   if ($('unreadBadge')) {
     $('unreadBadge').textContent = unread > 0 ? `新訊息 ${unread}` : '新訊息 0';
     $('unreadBadge').classList.toggle('active', unread > 0);
   }
   if ($('readUnreadBtn')) $('readUnreadBtn').disabled = unread <= 0;
+=======
+  const badge = $('unreadBadge');
+  const btn = $('readUnreadBtn');
+
+  if (badge) {
+    badge.textContent = unread > 0 ? `未讀 ${unread}` : '無未讀';
+    badge.classList.toggle('active', unread > 0);
+  }
+  if (btn) btn.disabled = unread <= 0;
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 function saveLastUnread(count) {
@@ -628,7 +873,21 @@ function loadFriends() {
     const raw = localStorage.getItem(FRIENDS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
+<<<<<<< HEAD
     return Array.isArray(parsed) ? parsed : [];
+=======
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && item.session && item.session.myChannel && item.session.peerChannel && item.session.sealedKey)
+      .map((item) => ({
+        id: String(item.id || makeLocalId()),
+        name: String(item.name || '私•話').slice(0, 40),
+        session: normalizeSessionSettings(item.session),
+        updatedAt: Number(item.updatedAt || Date.now())
+      }))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 20);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   } catch (err) {
     return [];
   }
@@ -640,7 +899,6 @@ function saveFriends(friends) {
 
 function renderFriendsList() {
   if (!friendsPanel || !friendsList) return;
-
   const friends = loadFriends();
   friendsList.replaceChildren();
 
@@ -650,7 +908,6 @@ function renderFriendsList() {
   }
 
   friendsPanel.classList.remove('hidden');
-
   friends.forEach((friend) => {
     const item = document.createElement('div');
     item.className = 'friend-item';
@@ -658,6 +915,7 @@ function renderFriendsList() {
     const main = document.createElement('button');
     main.type = 'button';
     main.className = 'friend-main';
+<<<<<<< HEAD
 
     const title = document.createElement('strong');
     title.textContent = friend.name || '未命名好友';
@@ -667,6 +925,11 @@ function renderFriendsList() {
 
     main.appendChild(title);
     main.appendChild(sub);
+=======
+    main.innerHTML = '<strong></strong><span></span>';
+    main.querySelector('strong').textContent = friend.name;
+    main.querySelector('span').textContent = `上次使用：${formatDate(friend.updatedAt)}`;
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     main.addEventListener('click', () => openFriend(friend.id));
 
     const rename = document.createElement('button');
@@ -689,6 +952,7 @@ function renderFriendsList() {
 }
 
 function saveCurrentAsFriend() {
+<<<<<<< HEAD
   if (!session || !session.myChannel) return;
   const existingName = findFriendNameBySession(session) || '常用對話';
   const name = prompt('要把這個頻道存成什麼名稱？', existingName);
@@ -698,6 +962,22 @@ function saveCurrentAsFriend() {
   updateChatSub();
   setStatus('已加入常用。');
 }
+=======
+  if (!session || !session.myChannel || !session.peerChannel || !session.sealedKey) {
+    setStatus('尚未建立可儲存的私•話。');
+    return;
+  }
+
+  const existingName = findFriendNameBySession(session) || '私•話';
+  const name = prompt('要把這個私•話存成什麼名稱？', existingName);
+  if (name === null) return;
+
+  const safeName = String(name || '').trim().slice(0, 40);
+  if (!safeName) {
+    setStatus('名稱不可為空。');
+    return;
+  }
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 
 function saveFriendRecord(name, sessionValue, askOverwrite) {
   if (!sessionValue || !sessionValue.myChannel) return;
@@ -725,7 +1005,15 @@ function saveFriendRecord(name, sessionValue, askOverwrite) {
 function openFriend(id) {
   const friends = loadFriends();
   const index = friends.findIndex((item) => item.id === id);
+<<<<<<< HEAD
   if (index < 0) return;
+=======
+  if (index < 0) {
+    setStatus('找不到這個常用私•話。');
+    renderFriendsList();
+    return;
+  }
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 
   friends[index].updatedAt = Date.now();
   session = normalizeSessionSettings(friends[index].session);
@@ -733,26 +1021,55 @@ function openFriend(id) {
   saveFriends(friends);
   goCleanBaseUrl();
   enterChat();
+<<<<<<< HEAD
   renderFriendsList();
+=======
+  addMessage('system', '系統', `已開啟：${item.name}`);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 function renameFriend(id) {
   const friends = loadFriends();
+<<<<<<< HEAD
   const index = friends.findIndex((item) => item.id === id);
   if (index < 0) return;
   const name = prompt('新的好友名稱', friends[index].name || '常用對話');
   if (!name) return;
   friends[index].name = name.trim().slice(0, 40);
   friends[index].updatedAt = Date.now();
+=======
+  const item = friends.find((friend) => friend.id === id);
+  if (!item) return;
+
+  const name = prompt('新的名稱', item.name);
+  if (name === null) return;
+
+  const safeName = String(name || '').trim().slice(0, 40);
+  if (!safeName) return;
+
+  item.name = safeName;
+  item.updatedAt = Date.now();
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   saveFriends(friends);
   renderFriendsList();
   updateChatSub();
 }
 
 function deleteFriend(id) {
+<<<<<<< HEAD
   if (!confirm('刪除這個本機好友捷徑？不會影響對方。')) return;
   saveFriends(loadFriends().filter((item) => item.id !== id));
   renderFriendsList();
+=======
+  const friends = loadFriends();
+  const item = friends.find((friend) => friend.id === id);
+  if (!item) return;
+  if (!confirm(`確定刪除「${item.name}」？這只會刪除本機常用，不會影響對方。`)) return;
+
+  saveFriends(friends.filter((friend) => friend.id !== id));
+  renderFriendsList();
+  setStatus('已刪除常用。');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 function findFriendNameBySession(value) {
@@ -762,7 +1079,12 @@ function findFriendNameBySession(value) {
 }
 
 function makeLocalId() {
+<<<<<<< HEAD
   return `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+=======
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 function formatDate(timestamp) {
@@ -773,6 +1095,16 @@ function formatDate(timestamp) {
 async function enableNotifications() {
   if (!('Notification' in window)) {
     setStatus('這個瀏覽器不支援通知。');
+<<<<<<< HEAD
+=======
+    updateNotifyButton();
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    setStatus('通知已被瀏覽器封鎖，請到瀏覽器設定開啟。');
+    updateNotifyButton();
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     return;
   }
 
@@ -781,6 +1113,10 @@ async function enableNotifications() {
 
   if (permission === 'granted') {
     localStorage.setItem(NOTIFY_PREF_KEY, '1');
+<<<<<<< HEAD
+=======
+    setStatus('通知已開啟。通知不會顯示訊息內容。');
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     updateNotifyButton();
     new Notification('通知已開啟', { body: '通知不會顯示訊息內容。', icon: '/assets/icon-192.png' });
     setStatus('通知已開啟。');
@@ -793,11 +1129,22 @@ function updateNotifyButton() {
   const btn = $('enableNotifyBtn');
   if (!btn) return;
 
+<<<<<<< HEAD
   if ('Notification' in window && Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
+=======
+  if (!('Notification' in window)) {
+    btn.textContent = '無通知';
+    btn.disabled = true;
+    return;
+  }
+
+  if (Notification.permission === 'granted' && localStorage.getItem(NOTIFY_PREF_KEY) === '1') {
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     btn.textContent = '通知開';
   } else {
     btn.textContent = '通知';
   }
+<<<<<<< HEAD
 }
 
 function showUnreadNotification(unread) {
@@ -814,6 +1161,62 @@ function showUnreadNotification(unread) {
 
 function resetSession() {
   if (!confirm('確定要離開目前對話？好友清單不會被刪除。')) return;
+=======
+
+  btn.textContent = Notification.permission === 'denied' ? '通知封鎖' : '通知';
+  btn.disabled = false;
+}
+
+async function showTestNotification() {
+  await showNotification('私•話通知已開啟', {
+    body: '之後只會提醒有新訊息，不顯示內容。',
+    tag: 'sihua-test',
+    renotify: false
+  });
+}
+
+async function showUnreadNotification(unread) {
+  if (!notificationsEnabled()) return;
+  if (!document.hidden && chatView && !chatView.classList.contains('hidden')) return;
+
+  const count = Math.max(1, Number(unread || 1));
+  await showNotification('新的私•話訊息', {
+    body: `未讀 ${count} 則`,
+    tag: 'sihua-unread',
+    renotify: true
+  });
+}
+
+async function showNotification(title, options) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const payload = {
+    body: options && options.body ? options.body : '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: options && options.tag ? options.tag : 'sihua',
+    renotify: Boolean(options && options.renotify),
+    data: { url: getAppBaseUrl() }
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration && registration.showNotification) {
+        await registration.showNotification(title, payload);
+        return;
+      }
+    }
+  } catch (err) {}
+
+  try {
+    new Notification(title, payload);
+  } catch (err) {}
+}
+
+function resetSession() {
+  if (!confirm('確定離開目前私•話？本機對話設定會清除，但常用列表不會自動刪除。')) return;
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
   localStorage.removeItem(SESSION_KEY);
   session = null;
   if (pollTimer) clearInterval(pollTimer);
@@ -835,6 +1238,21 @@ function loadSession() {
   } catch (err) {
     return null;
   }
+}
+
+function loadIdentityIntoInputs() {
+  const name = localStorage.getItem(IDENTITY_KEY) || '';
+  if ($('displayName') && !$('displayName').value) $('displayName').value = name;
+  if ($('guestName') && !$('guestName').value) $('guestName').value = name;
+}
+
+function getIdentityFromInputs(fallback) {
+  const value = (($('displayName') && $('displayName').value) || ($('guestName') && $('guestName').value) || localStorage.getItem(IDENTITY_KEY) || fallback || '我').trim();
+  return value.slice(0, 30) || '我';
+}
+
+function saveIdentity(name) {
+  localStorage.setItem(IDENTITY_KEY, String(name || '我').slice(0, 30));
 }
 
 function loadLocalSettings() {
@@ -875,6 +1293,11 @@ function normalizeSessionSettings(value) {
   if (!value) return value;
   return {
     ...value,
+<<<<<<< HEAD
+=======
+    sealedKey: String(value.sealedKey || ''),
+    label: String(value.label || localStorage.getItem(IDENTITY_KEY) || '我').slice(0, 30),
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     settings: sanitizeSettings(value.settings || loadLocalSettings())
   };
 }
@@ -894,30 +1317,15 @@ function clampNumber(value, fallback, min, max) {
   return Math.max(min, Math.min(max, number));
 }
 
-function formatSeconds(seconds) {
-  const s = Number(seconds) || 0;
-  if (s >= 3600) {
-    const hours = Math.floor(s / 3600);
-    const minutes = Math.floor((s % 3600) / 60);
-    return minutes ? `${hours} 小時 ${minutes} 分鐘` : `${hours} 小時`;
-  }
-  if (s >= 60) {
-    const minutes = Math.floor(s / 60);
-    const remain = s % 60;
-    return remain ? `${minutes} 分 ${remain} 秒` : `${minutes} 分鐘`;
-  }
-  return `${s} 秒`;
-}
-
 function maybeShowInstallBox() {
   if (!session) return;
+  if (!installBox || !installBtn || !installText) return;
   if (localStorage.getItem(INSTALL_DISMISSED_KEY) === '1') return;
   if (isStandalone()) return;
 
   const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-
   if (deferredInstallPrompt) {
-    installText.textContent = '這個裝置支援直接安裝。安裝後可以從主畫面開啟。';
+    installText.textContent = '可以安裝到主畫面，像 App 一樣開啟。';
     installBtn.textContent = '安裝';
     installBtn.disabled = false;
     installBox.classList.remove('hidden');
@@ -925,7 +1333,11 @@ function maybeShowInstallBox() {
   }
 
   if (isiOS) {
+<<<<<<< HEAD
     installText.textContent = 'iPhone 請使用 Safari 開啟，按分享按鈕，再選「加入主畫面」。';
+=======
+    installText.textContent = 'iPhone 請用 Safari 分享按鈕，選「加入主畫面」。';
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
     installBtn.textContent = '知道了';
     installBtn.disabled = false;
     installBox.classList.remove('hidden');
@@ -937,12 +1349,12 @@ async function installPwa() {
     deferredInstallPrompt.prompt();
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
-    installBox.classList.add('hidden');
+    if (installBox) installBox.classList.add('hidden');
     return;
   }
 
   localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
-  installBox.classList.add('hidden');
+  if (installBox) installBox.classList.add('hidden');
 }
 
 function isStandalone() {
@@ -970,6 +1382,7 @@ function makeSealedKey() {
   return bytesToBase64Url(bytes);
 }
 
+<<<<<<< HEAD
 async function deriveChannelId(masterKeyBase64, roleStr) {
   const rawKey = base64UrlToBytes(masterKeyBase64);
   const roleBytes = new TextEncoder().encode(`ANG_CHANNEL_V1:${roleStr}`);
@@ -980,6 +1393,16 @@ async function deriveChannelId(masterKeyBase64, roleStr) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return 'ch_' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 48);
+=======
+async function deriveChannelId(masterKeyBase64, role) {
+  const rawKey = base64UrlToBytes(masterKeyBase64);
+  const roleBytes = new TextEncoder().encode(role);
+  const data = new Uint8Array(rawKey.length + roleBytes.length);
+  data.set(rawKey, 0);
+  data.set(roleBytes, rawKey.length);
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+  return 'ch_' + Array.from(hash).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 async function importAesKey(base64UrlKey) {
@@ -1006,11 +1429,33 @@ async function makeAngPacket(message, base64UrlKey) {
 
 async function decryptAngPacket(packet, base64UrlKey) {
   const text = String(packet || '');
+<<<<<<< HEAD
   if (!text.startsWith('ANG1.')) throw new Error('Invalid packet');
   const wrapper = JSON.parse(base64UrlToString(text.slice(5)));
   const key = await importAesKey(base64UrlKey);
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: base64UrlToBytes(wrapper.iv) }, key, base64UrlToBytes(wrapper.data));
   return JSON.parse(new TextDecoder().decode(plain));
+=======
+  if (!text.startsWith('ANG1.')) throw new Error('不是 ANG1 密封包');
+
+  const wrapper = JSON.parse(base64UrlToString(text.slice(5)));
+  if (!wrapper || wrapper.v !== 1 || !wrapper.iv || !wrapper.data) throw new Error('密封包格式錯誤');
+
+  const key = await importAesKey(base64UrlKey);
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: base64UrlToBytes(wrapper.iv) },
+    key,
+    base64UrlToBytes(wrapper.data)
+  );
+
+  const message = JSON.parse(new TextDecoder().decode(plain));
+  return {
+    sender: String(message.sender || '對方').slice(0, 40),
+    text: String(message.text || '').slice(0, 1000),
+    system: Boolean(message.system),
+    timestamp: Number(message.timestamp || Date.now())
+  };
+>>>>>>> 946152175038b1c9de4c626e31fb1c48cea5b8b1
 }
 
 function bytesToBase64Url(bytes) {
